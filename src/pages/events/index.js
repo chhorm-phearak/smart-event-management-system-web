@@ -1,4 +1,3 @@
-export { EventListPage } from './EventListPage';
-export { EventDetailPage } from './EventDetailPage';
-export { EventCreatePage } from './EventCreatePage';
+export { AllEventsPage } from './AllEventsPage';
+export { ManageEventsPage } from './ManageEventsPage';
 

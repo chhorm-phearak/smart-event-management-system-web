@@ -1,0 +1,2 @@
+export { ManageAttendeesPage } from './ManageAttendeesPage';
+

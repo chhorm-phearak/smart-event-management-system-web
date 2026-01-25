@@ -20,6 +20,9 @@ const api = axios.create({
   },
 });
 
+// Flag to prevent multiple token expiration redirects
+let isRedirecting = false;
+
 // Request interceptor to add access token to every request
 api.interceptors.request.use(
   (config) => {
@@ -40,10 +43,20 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    // Handle 401 unauthorized - clear token and redirect to login
+    // Handle 401 unauthorized - show alert and redirect to login
+    // But exclude login/register endpoints as they return 401 for invalid credentials
     if (error.response?.status === 401) {
-      removeAccessToken();
-      window.location.href = '/login';
+      const requestUrl = error.config?.url || '';
+      const isAuthEndpoint = requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register');
+      
+      // Only show token expiration message for authenticated requests, not for login/register failures
+      if (!isAuthEndpoint && !isRedirecting) {
+        isRedirecting = true;
+        removeAccessToken();
+        alert('Your token is expired. Please login again.');
+        // Use replace instead of href to prevent back button issues
+        window.location.replace('/login');
+      }
     }
     return Promise.reject(error);
   }

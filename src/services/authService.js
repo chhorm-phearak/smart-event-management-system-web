@@ -62,5 +62,17 @@ export const authService = {
       removeAccessToken();
     }
   },
+
+  // Get Profile
+  getProfile: async () => {
+    const response = await api.get('/auth/profile');
+    return response.data;
+  },
+
+  // Update Profile
+  updateProfile: async (profileData) => {
+    const response = await api.put('/auth/profile', profileData);
+    return response.data;
+  },
 };
 

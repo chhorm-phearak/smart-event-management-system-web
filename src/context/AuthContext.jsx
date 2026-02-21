@@ -10,20 +10,29 @@ export const AuthProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is authenticated on mount
-    const token = getAccessToken();
-    if (token) {
-      setIsAuthenticated(true);
-      // Optionally fetch user data here
-    }
-    setIsLoading(false);
+    const initAuth = async () => {
+      const token = getAccessToken();
+      if (token) {
+        setIsAuthenticated(true);
+        try {
+          const profileData = await authService.getProfile();
+          const userData = profileData?.data?.user || profileData?.user || profileData;
+          if (userData) setUser(userData);
+        } catch {
+          // Token may be invalid, keep user null
+        }
+      }
+      setIsLoading(false);
+    };
+    initAuth();
   }, []);
 
   const login = async (email, password) => {
     try {
       const data = await authService.login(email, password);
       setIsAuthenticated(true);
-      setUser(data.user || { email });
+      const userData = data?.data?.user || data?.user || { email };
+      setUser(userData);
       return { success: true, data };
     } catch (error) {
       return {
@@ -37,7 +46,8 @@ export const AuthProvider = ({ children }) => {
     try {
       const data = await authService.register(userData);
       setIsAuthenticated(true);
-      setUser(data.user || userData);
+      const profileUser = data?.data?.user || data?.user || userData;
+      setUser(profileUser);
       return { success: true, data };
     } catch (error) {
       return {

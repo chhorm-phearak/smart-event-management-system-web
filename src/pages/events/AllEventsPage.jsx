@@ -20,98 +20,71 @@ export const AllEventsPage = () => {
     fetchEvents();
   }, [selectedCategory, selectedDate, searchQuery]);
 
+  const formatEventDate = (isoString) => {
+    if (!isoString) return '';
+    return new Date(isoString).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' });
+  };
+
+  const formatEventTime = (isoString) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  };
+
   const fetchEvents = async () => {
     try {
       setLoading(true);
-      // For now, using mock data. Replace with actual API call when backend is ready
-      // const data = await eventService.getAllEvents({
-      //   category: selectedCategory !== 'all' ? selectedCategory : undefined,
-      //   date: selectedDate !== 'all' ? selectedDate : undefined,
-      //   search: searchQuery || undefined,
-      // });
-      
-      // Mock data for demonstration
-      const mockEvents = [
-        {
-          id: 1,
-          title: 'Web Development',
-          date: 'Aug 30, 2025',
-          time: '09:00 AM',
-          location: 'Khan 7 Makara, Phnom Penh',
-          maxAttendees: 100,
-          category: 'Technology',
-          image: 'https://via.placeholder.com/400x200?text=Web+Development',
-        },
-        {
-          id: 2,
-          title: 'Mobile App Development',
-          date: 'Sep 5, 2025',
-          time: '10:00 AM',
-          location: 'Khan Daun Penh, Phnom Penh',
-          maxAttendees: 80,
-          category: 'Technology',
-          image: 'https://via.placeholder.com/400x200?text=Mobile+App',
-        },
-        {
-          id: 3,
-          title: 'Business Networking',
-          date: 'Sep 10, 2025',
-          time: '02:00 PM',
-          location: 'Khan Chamkar Mon, Phnom Penh',
-          maxAttendees: 150,
-          category: 'Business',
-          image: 'https://via.placeholder.com/400x200?text=Business',
-        },
-        {
-          id: 4,
-          title: 'Data Science Workshop',
-          date: 'Sep 15, 2025',
-          time: '09:00 AM',
-          location: 'Khan Toul Kork, Phnom Penh',
-          maxAttendees: 60,
-          category: 'Technology',
-          image: 'https://via.placeholder.com/400x200?text=Data+Science',
-        },
-        {
-          id: 5,
-          title: 'Digital Marketing Summit',
-          date: 'Sep 20, 2025',
-          time: '11:00 AM',
-          location: 'Khan Sen Sok, Phnom Penh',
-          maxAttendees: 200,
-          category: 'Business',
-          image: 'https://via.placeholder.com/400x200?text=Marketing',
-        },
-        {
-          id: 6,
-          title: 'AI & Machine Learning',
-          date: 'Sep 25, 2025',
-          time: '01:00 PM',
-          location: 'Khan 7 Makara, Phnom Penh',
-          maxAttendees: 120,
-          category: 'Technology',
-          image: 'https://via.placeholder.com/400x200?text=AI+ML',
-        },
-      ];
+      const res = await eventService.getAllEvents({
+        category: selectedCategory !== 'all' ? selectedCategory : undefined,
+        search: searchQuery || undefined,
+      });
+      const rawEvents = res?.data?.events ?? res?.events ?? [];
+      const mapped = rawEvents.map((e) => ({
+        id: e.id,
+        title: e.title,
+        date: formatEventDate(e.start_time),
+        time: formatEventTime(e.start_time),
+        location: e.location || e.full_address || '—',
+        maxAttendees: e.capacity ?? 0,
+        category: e.category || 'Other',
+        image: e.images?.[0]?.image_url || 'https://via.placeholder.com/400x200?text=Event',
+      }));
 
-      // Filter events based on search, category, and date
-      let filteredEvents = mockEvents;
-      
+      let filteredEvents = mapped;
       if (searchQuery) {
-        filteredEvents = filteredEvents.filter(event =>
+        filteredEvents = filteredEvents.filter((event) =>
           event.title.toLowerCase().includes(searchQuery.toLowerCase())
         );
       }
-      
       if (selectedCategory !== 'all') {
-        filteredEvents = filteredEvents.filter(event =>
+        filteredEvents = filteredEvents.filter((event) =>
           event.category.toLowerCase() === selectedCategory.toLowerCase()
         );
+      }
+      if (selectedDate !== 'all') {
+        const now = new Date();
+        filteredEvents = filteredEvents.filter((event) => {
+          const eventDate = new Date(rawEvents.find((r) => r.id === event.id)?.start_time);
+          if (selectedDate === 'today') {
+            return eventDate.toDateString() === now.toDateString();
+          }
+          if (selectedDate === 'this week') {
+            const weekEnd = new Date(now);
+            weekEnd.setDate(weekEnd.getDate() + 7);
+            return eventDate >= now && eventDate <= weekEnd;
+          }
+          if (selectedDate === 'this month') {
+            return eventDate.getMonth() === now.getMonth() && eventDate.getFullYear() === now.getFullYear();
+          }
+          if (selectedDate === 'upcoming') return eventDate >= now;
+          return true;
+        });
       }
 
       setEvents(filteredEvents);
     } catch (error) {
       console.error('Error fetching events:', error);
+      setEvents([]);
     } finally {
       setLoading(false);
     }

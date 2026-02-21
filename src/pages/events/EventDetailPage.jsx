@@ -17,78 +17,52 @@ export const EventDetailPage = () => {
   }, [id]);
 
   const fetchEventDetails = async () => {
+    if (!id) return;
     try {
       setLoading(true);
-      // For now, using mock data. Replace with actual API call when backend is ready
-      // const data = await eventService.getEventById(id);
-      
-      // Mock data for demonstration
-      const mockEvent = {
-        id: id || 1,
-        title: 'Tech Conference 2025',
-        shortDescription: 'Annual technology conference featuring industry leaders and innovators.',
-        description: "This year's Tech Conference brings together the brightest minds in technology. We'll cover topics including AI, cloud computing, cybersecurity, and more. Don't miss this opportunity to learn from industry experts and connect with like-minded professionals.",
-        category: 'Technology',
-        eventDate: '2024-03-15',
-        startTime: '09:00',
-        endTime: '17:00',
-        location: 'Convention Center, New York',
-        fullAddress: '123 Main Street, New York',
-        capacity: 150,
-        registered: 120,
+      const res = await eventService.getAllEvents();
+      const events = res?.data?.events ?? res?.events ?? [];
+      const raw = events.find((e) => e.id === id) ?? null;
+      if (!raw) {
+        setEvent(null);
+        return;
+      }
+      const mapAgenda = (agenda) => {
+        if (!agenda || typeof agenda !== 'object') return [];
+        const list = Array.isArray(agenda) ? agenda : [agenda];
+        return list.map((a, i) => ({
+          id: a.id ?? i,
+          title: a.title ?? a.name ?? '—',
+          description: a.description ?? '',
+          startTime: a.start_time ? formatTimeFromISO(a.start_time) : '',
+          endTime: a.end_time ? formatTimeFromISO(a.end_time) : '',
+          speaker: a.speaker ?? '',
+        }));
+      };
+      setEvent({
+        id: raw.id,
+        title: raw.title,
+        shortDescription: raw.short_description,
+        description: raw.long_description || raw.short_description,
+        category: raw.category || 'Other',
+        eventDate: raw.start_time,
+        startTime: raw.start_time ? formatTimeFromISO(raw.start_time) : '',
+        endTime: raw.end_time ? formatTimeFromISO(raw.end_time) : '',
+        location: raw.location || '—',
+        fullAddress: raw.full_address || raw.location || '—',
+        capacity: raw.capacity ?? 0,
+        registered: 0,
         price: 0,
-        organizer: 'Tech Events Inc.',
-        image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&h=400&fit=crop',
+        organizer: raw.organization_name || '—',
+        image: raw.images?.[0]?.image_url || 'https://via.placeholder.com/1200x400?text=Event',
         registrationRequired: true,
         qrCodeAvailable: true,
         bringValidId: true,
-        agendas: [
-          {
-            id: 1,
-            title: 'Opening Keynote',
-            description: 'Welcome address and conference overview',
-            startTime: '09:00',
-            endTime: '10:00',
-            speaker: 'John Smith, CEO',
-          },
-          {
-            id: 2,
-            title: 'AI and Machine Learning',
-            description: 'Exploring the latest trends in AI and ML technologies',
-            startTime: '10:30',
-            endTime: '12:00',
-            speaker: 'Dr. Jane Doe',
-          },
-          {
-            id: 3,
-            title: 'Lunch Break',
-            description: 'Networking lunch',
-            startTime: '12:00',
-            endTime: '13:30',
-            speaker: '',
-          },
-          {
-            id: 4,
-            title: 'Cloud Computing Workshop',
-            description: 'Hands-on workshop on cloud infrastructure',
-            startTime: '14:00',
-            endTime: '15:30',
-            speaker: 'Mike Johnson',
-          },
-          {
-            id: 5,
-            title: 'Closing Remarks',
-            description: 'Conference wrap-up and future announcements',
-            startTime: '16:00',
-            endTime: '17:00',
-            speaker: 'John Smith, CEO',
-          },
-        ],
-      };
-      
-      setEvent(mockEvent);
+        agendas: mapAgenda(raw.agenda),
+      });
     } catch (error) {
       console.error('Error fetching event details:', error);
+      setEvent(null);
     } finally {
       setLoading(false);
     }
@@ -102,11 +76,20 @@ export const EventDetailPage = () => {
 
   const formatTime = (timeString) => {
     if (!timeString) return '';
+    if (timeString.includes('T') || timeString.includes(':')) {
+      return formatTimeFromISO(timeString);
+    }
     const [hours, minutes] = timeString.split(':');
-    const hour = parseInt(hours);
+    const hour = parseInt(hours, 10);
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes} ${ampm}`;
+    return `${displayHour}:${minutes || '00'} ${ampm}`;
+  };
+
+  const formatTimeFromISO = (isoString) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
   };
 
   const handleRegister = () => {
@@ -131,7 +114,9 @@ export const EventDetailPage = () => {
     console.log('Copying ticket code...');
   };
 
-  const attendancePercentage = event ? Math.round((event.registered / event.capacity) * 100) : 0;
+  const attendancePercentage = event?.capacity
+    ? Math.round((event.registered / event.capacity) * 100)
+    : 0;
 
   if (loading) {
     return (

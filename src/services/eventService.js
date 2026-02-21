@@ -36,4 +36,12 @@ export const eventService = {
     const response = await api.post(`/events/${eventId}/register`);
     return response.data;
   },
+
+  // Add images to event
+  addEventImages: async (eventId, imageUrls) => {
+    const response = await api.post(`/events/${eventId}/images`, {
+      image_urls: Array.isArray(imageUrls) ? imageUrls : [imageUrls],
+    });
+    return response.data;
+  },
 };

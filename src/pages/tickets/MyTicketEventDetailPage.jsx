@@ -1,13 +1,112 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { eventService } from '@/services';
+import { getApiOrigin } from '@/utils';
+import { QRCodeSVG } from 'qrcode.react';
+
+const FALLBACK_EVENT_IMAGE = `data:image/svg+xml;utf8,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400"><rect width="100%" height="100%" fill="#e5e7eb"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#6b7280" font-family="Arial, sans-serif" font-size="28">Event image not available</text></svg>'
+)}`;
+
+const isValidDate = (date) => date instanceof Date && !Number.isNaN(date.getTime());
+
+const formatTimeFromISO = (isoString) => {
+  if (!isoString) return '';
+  const date = new Date(isoString);
+  if (!isValidDate(date)) return '';
+  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+};
+
+const getEventPayload = (res) => {
+  if (!res || typeof res !== 'object') return null;
+  const data = res.data ?? res;
+  if (data && typeof data === 'object' && data.event != null) return data.event;
+  return data ?? res.event ?? res;
+};
+
+const getRegisteredEventsPayload = (res) => {
+  if (!res || typeof res !== 'object') return [];
+  if (Array.isArray(res)) return res;
+  if (Array.isArray(res.events)) return res.events;
+  if (Array.isArray(res.data)) return res.data;
+  if (Array.isArray(res.data?.events)) return res.data.events;
+  return [];
+};
+
+const mapAgenda = (agenda) => {
+  if (!agenda) return [];
+  const list = Array.isArray(agenda) ? agenda : [agenda];
+  return list.map((a, i) => ({
+    id: a?.id ?? i,
+    title: a?.title ?? a?.name ?? '—',
+    description: a?.description ?? '',
+    startTime: a?.start_time ?? a?.startTime ?? '',
+    endTime: a?.end_time ?? a?.endTime ?? '',
+    speaker: a?.speaker ?? '',
+  }));
+};
+
+const toAbsoluteImageUrl = (value) => {
+  if (!value || typeof value !== 'string') return '';
+  if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:') || value.startsWith('blob:')) {
+    return value;
+  }
+  const apiOrigin = getApiOrigin();
+  if (value.startsWith('/')) return `${apiOrigin}${value}`;
+  return `${apiOrigin}/${value}`;
+};
+
+const extractRawImageValue = (raw) => {
+  if (!raw || typeof raw !== 'object') return '';
+  const images = raw.images ?? raw.event_images ?? [];
+  const firstImage = Array.isArray(images) ? images[0] : images;
+  const imageFromCollection =
+    (firstImage && typeof firstImage === 'object' && (firstImage.image_url ?? firstImage.url ?? firstImage.image ?? firstImage.path)) ||
+    (typeof firstImage === 'string' ? firstImage : '');
+  return (
+    imageFromCollection ||
+    raw.image_url ||
+    raw.image ||
+    raw.cover_image ||
+    raw.thumbnail ||
+    ''
+  );
+};
+
+const mapRawToEvent = (raw) => {
+  if (!raw || typeof raw !== 'object') return null;
+  const imageUrl = toAbsoluteImageUrl(extractRawImageValue(raw)) || FALLBACK_EVENT_IMAGE;
+
+  return {
+    id: raw.id,
+    title: raw.title ?? raw.name ?? '—',
+    shortDescription: raw.short_description ?? raw.shortDescription ?? '',
+    description: raw.long_description ?? raw.longDescription ?? raw.short_description ?? raw.shortDescription ?? '',
+    category: raw.category ?? 'Other',
+    eventDate: raw.start_time ?? raw.startTime ?? raw.event_date ?? raw.date ?? '',
+    startTime: raw.start_time ?? raw.startTime ?? '',
+    endTime: raw.end_time ?? raw.endTime ?? '',
+    location: raw.location ?? '—',
+    fullAddress: raw.full_address ?? raw.fullAddress ?? raw.location ?? '—',
+    capacity: raw.capacity ?? 0,
+    registered: raw.registered ?? raw.attendees_count ?? 0,
+    price: raw.price ?? 0,
+    organizer: raw.organization_name ?? raw.organizationName ?? raw.organizer ?? '—',
+    image: imageUrl,
+    qrcode: raw.qrcode ?? raw.qr_code ?? '',
+    registrationRequired: raw.registration_required ?? true,
+    qrCodeAvailable: raw.qr_code_available ?? true,
+    bringValidId: raw.bring_valid_id ?? true,
+    agendas: mapAgenda(raw.agenda ?? raw.agendas),
+  };
+};
 
 export const MyTicketEventDetailPage = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const [event, setEvent] = useState(null);
+  const [ticketCode, setTicketCode] = useState('');
   const [loading, setLoading] = useState(true);
-  const [isRegistered, setIsRegistered] = useState(true); // Always true since coming from My Ticket page
   const [showQrModal, setShowQrModal] = useState(false);
 
   useEffect(() => {
@@ -17,76 +116,50 @@ export const MyTicketEventDetailPage = () => {
   const fetchEventDetails = async () => {
     try {
       setLoading(true);
-      // For now, using mock data. Replace with actual API call when backend is ready
-      // const data = await eventService.getEventById(id);
-      
-      // Mock data for demonstration
-      const mockEvent = {
-        id: id || 1,
-        title: 'Tech Conference 2025',
-        shortDescription: 'Annual technology conference featuring industry leaders and innovators.',
-        description: "This year's Tech Conference brings together the brightest minds in technology. We'll cover topics including AI, cloud computing, cybersecurity, and more. Don't miss this opportunity to learn from industry experts and connect with like-minded professionals.",
-        category: 'Technology',
-        eventDate: '2024-03-15',
-        startTime: '09:00',
-        endTime: '17:00',
-        location: 'Convention Center, New York',
-        fullAddress: '123 Main Street, New York',
-        capacity: 150,
-        registered: 120,
-        price: 0,
-        organizer: 'Tech Events Inc.',
-        image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&h=400&fit=crop',
-        registrationRequired: true,
-        qrCodeAvailable: true,
-        bringValidId: true,
-        agendas: [
-          {
-            id: 1,
-            title: 'Opening Keynote',
-            description: 'Welcome address and conference overview',
-            startTime: '09:00',
-            endTime: '10:00',
-            speaker: 'John Smith, CEO',
-          },
-          {
-            id: 2,
-            title: 'AI and Machine Learning',
-            description: 'Exploring the latest trends in AI and ML technologies',
-            startTime: '10:30',
-            endTime: '12:00',
-            speaker: 'Dr. Jane Doe',
-          },
-          {
-            id: 3,
-            title: 'Lunch Break',
-            description: 'Networking lunch',
-            startTime: '12:00',
-            endTime: '13:30',
-            speaker: '',
-          },
-          {
-            id: 4,
-            title: 'Cloud Computing Workshop',
-            description: 'Hands-on workshop on cloud infrastructure',
-            startTime: '14:00',
-            endTime: '15:30',
-            speaker: 'Mike Johnson',
-          },
-          {
-            id: 5,
-            title: 'Closing Remarks',
-            description: 'Conference wrap-up and future announcements',
-            startTime: '16:00',
-            endTime: '17:00',
-            speaker: 'John Smith, CEO',
-          },
-        ],
-      };
-      
-      setEvent(mockEvent);
+      if (!id) {
+        setEvent(null);
+        setTicketCode('');
+        return;
+      }
+
+      const [eventRes, registeredRes] = await Promise.all([
+        eventService.getEventById(id),
+        eventService.getRegisteredEvents().catch(() => null),
+      ]);
+
+      const rawEvent = getEventPayload(eventRes);
+      const mappedEvent = mapRawToEvent(rawEvent);
+      if (!mappedEvent) {
+        setEvent(null);
+        setTicketCode('');
+        return;
+      }
+
+      const registeredEvents = getRegisteredEventsPayload(registeredRes);
+      const registeredEvent = registeredEvents.find((item) => {
+        const registeredEventId = item?.event_id ?? item?.eventId ?? item?.id;
+        return String(registeredEventId) === String(id);
+      });
+
+      const qrCode =
+        registeredEvent?.qrcode ??
+        registeredEvent?.qr_code ??
+        registeredEvent?.ticket_code ??
+        registeredEvent?.code ??
+        mappedEvent.qrcode ??
+        '';
+      const registeredImage = toAbsoluteImageUrl(extractRawImageValue(registeredEvent));
+
+      setEvent({
+        ...mappedEvent,
+        image: registeredImage || mappedEvent.image || FALLBACK_EVENT_IMAGE,
+        qrcode: qrCode || mappedEvent.qrcode,
+      });
+      setTicketCode(qrCode || '');
     } catch (error) {
       console.error('Error fetching event details:', error);
+      setEvent(null);
+      setTicketCode('');
     } finally {
       setLoading(false);
     }
@@ -105,27 +178,37 @@ export const MyTicketEventDetailPage = () => {
     console.log('Downloading QR ticket...');
   };
 
-  const handleCopyTicketCode = () => {
-    // Copy ticket code functionality would go here
-    console.log('Copying ticket code...');
+  const handleCopyTicketCode = async () => {
+    if (!ticketCode) return;
+    try {
+      await navigator.clipboard.writeText(ticketCode);
+    } catch (error) {
+      console.error('Failed to copy ticket code:', error);
+    }
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return '';
+    if (!dateString) return '—';
     const date = new Date(dateString);
+    if (!isValidDate(date)) return '—';
     return date.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
   };
 
   const formatTime = (timeString) => {
-    if (!timeString) return '';
-    const [hours, minutes] = timeString.split(':');
-    const hour = parseInt(hours);
+    if (!timeString) return '—';
+    if (String(timeString).includes('T') || String(timeString).match(/^\d{4}-\d{2}-\d{2}/)) {
+      return formatTimeFromISO(timeString) || '—';
+    }
+    const [hours, minutes] = String(timeString).split(':');
+    const hour = parseInt(hours, 10);
+    if (Number.isNaN(hour)) return '—';
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes} ${ampm}`;
+    return `${displayHour}:${minutes || '00'} ${ampm}`;
   };
 
-  const attendancePercentage = event ? Math.round((event.registered / event.capacity) * 100) : 0;
+  const attendancePercentage = event?.capacity ? Math.round((event.registered / event.capacity) * 100) : 0;
+  const isRegistered = Boolean(ticketCode);
 
   if (loading) {
     return (
@@ -165,9 +248,12 @@ export const MyTicketEventDetailPage = () => {
       {/* Event Image */}
       <div className="mb-6">
         <img 
-          src={event.image} 
+          src={event.image || FALLBACK_EVENT_IMAGE}
           alt={event.title}
           className="w-full h-64 object-cover rounded-lg shadow-sm"
+          onError={(e) => {
+            e.currentTarget.src = FALLBACK_EVENT_IMAGE;
+          }}
         />
       </div>
 
@@ -466,11 +552,13 @@ export const MyTicketEventDetailPage = () => {
               <div className="bg-white border-2 border-gray-200 rounded-xl p-6 mb-6">
                 <div className="flex flex-col items-center">
                   <div className="w-64 h-64 bg-white border-4 border-blue-100 rounded-xl p-4 mb-4 flex items-center justify-center shadow-inner">
-                    <div className="w-full h-full bg-gray-100 rounded-lg flex items-center justify-center">
-                      <svg className="w-48 h-48 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zM3 21h8v-8H3v8zm2-6h4v4H5v-4zM13 3v8h8V3h-8zm6 6h-4V5h4v4zM13 13h2v2h-2zM15 15h2v2h-2zM13 17h2v2h-2zM17 17h2v2h-2zM19 19h2v2h-2zM15 19h2v2h-2zM17 13h2v2h-2zM19 15h2v2h-2z"/>
-                      </svg>
-                    </div>
+                    {isRegistered ? (
+                      <QRCodeSVG value={ticketCode} size={185} level="M" />
+                    ) : (
+                      <div className="w-full h-full bg-gray-100 rounded-lg flex items-center justify-center text-xs text-gray-500 text-center px-4">
+                        No ticket code available
+                      </div>
+                    )}
                   </div>
                   <p className="text-xs text-gray-500 text-center mb-4">
                     Scan this QR code at the event entrance
@@ -485,10 +573,11 @@ export const MyTicketEventDetailPage = () => {
                 </label>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 px-4 py-3 bg-white border-2 border-gray-300 rounded-lg font-mono font-semibold text-gray-900 text-center">
-                    TKT-{event.id}-001
+                    {ticketCode || 'Not available'}
                   </div>
                   <button
                     onClick={handleCopyTicketCode}
+                    disabled={!isRegistered}
                     className="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2"
                     title="Copy ticket code"
                   >

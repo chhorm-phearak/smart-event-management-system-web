@@ -52,9 +52,10 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       const requestUrl = error.config?.url || '';
       const isAuthEndpoint = requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register');
+      const isPublicEndpoint = requestUrl.includes('/invite/validate') || requestUrl.includes('/invite/accept');
       
-      // Only show token expiration message for authenticated requests, not for login/register failures
-      if (!isAuthEndpoint && !isRedirecting) {
+      // Only show token expiration message for authenticated requests, not for login/register failures or public endpoints
+      if (!isAuthEndpoint && !isPublicEndpoint && !isRedirecting) {
         isRedirecting = true;
         removeAccessToken();
         alert('Your token is expired. Please login again.');

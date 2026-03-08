@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { eventService } from '@/services';
+import { groupService, eventService } from '@/services';
 
 export const GroupDetailPage = () => {
   const navigate = useNavigate();
@@ -12,88 +12,77 @@ export const GroupDetailPage = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchGroupDetails();
-    fetchGroupEvents();
-    fetchGroupMembers();
+    const loadAllData = async () => {
+      await Promise.all([
+        fetchGroupDetails(),
+        fetchGroupEvents(),
+        fetchGroupMembers()
+      ]);
+      setLoading(false);
+    };
+    
+    loadAllData();
   }, [id]);
 
   const fetchGroupDetails = async () => {
     try {
-      // Mock data for demonstration - replace with actual API call
-      // const data = await groupService.getGroupById(id);
+      // Use real API call to get group details
+      const response = await groupService.getGroupDetail(id);
+      console.log('Group Detail API Response:', response); // Debug log
       
-      const mockGroup = {
-        id: id || 1,
-        name: 'Web Development',
-        description: 'A group full of web developers passionate about building amazing web applications. Join us to share knowledge, collaborate on projects, and stay updated with the latest web technologies.',
-        members: 100,
-        events: 12,
-        image: 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=1200&h=400&fit=crop',
-        createdDate: '2024-01-15',
-        isJoined: true,
+      // Extract group data from API response structure
+      const groupData = response?.data?.group || response?.data?.group || response?.group || {};
+      
+      // Normalize data for UI consumption
+      const normalizedGroup = {
+        id: groupData.id || id,
+        name: groupData.name || 'Unknown Group',
+        description: groupData.description || 'No description available',
+        members: groupData.member_count || 0,
+        events: groupData.event_count || 0,
+        image: groupData.image || 'https://images.unsplash.com/photo-1526379095085-dccba630e2f6?w=1200&h=400&fit=crop',
+        createdDate: groupData.created_at || new Date().toISOString(),
+        isJoined: true, // You might want to determine this from API
       };
       
-      setGroup(mockGroup);
+      console.log('Normalized Group:', normalizedGroup); // Debug log
+      setGroup(normalizedGroup);
     } catch (error) {
       console.error('Error fetching group details:', error);
-    } finally {
       setLoading(false);
     }
   };
 
   const fetchGroupEvents = async () => {
     try {
-      // Mock data for demonstration - replace with actual API call
-      // const data = await eventService.getEventsByGroupId(id);
+      // Use real API call to get group events
+      const response = await groupService.getGroupDetail(id);
+      console.log('Events API Response:', response); // Debug log
       
-      const mockEvents = [
-        {
-          id: 1,
-          title: 'React Workshop 2025',
-          date: 'Aug 30, 2025',
-          time: '09:00 AM',
-          location: 'Khan 7 Makara, Phnom Penh',
-          maxAttendees: 100,
-          registered: 75,
-          category: 'Technology',
-          image: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=400&h=200&fit=crop',
-        },
-        {
-          id: 2,
-          title: 'Next.js Deep Dive',
-          date: 'Sep 5, 2025',
-          time: '10:00 AM',
-          location: 'Khan Daun Penh, Phnom Penh',
-          maxAttendees: 80,
-          registered: 60,
-          category: 'Technology',
-          image: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=400&h=200&fit=crop',
-        },
-        {
-          id: 3,
-          title: 'Web Performance Optimization',
-          date: 'Sep 15, 2025',
-          time: '02:00 PM',
-          location: 'Khan Chamkar Mon, Phnom Penh',
-          maxAttendees: 150,
-          registered: 120,
-          category: 'Technology',
-          image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&h=200&fit=crop',
-        },
-        {
-          id: 4,
-          title: 'TypeScript Best Practices',
-          date: 'Sep 20, 2025',
-          time: '09:00 AM',
-          location: 'Khan Toul Kork, Phnom Penh',
-          maxAttendees: 60,
-          registered: 45,
-          category: 'Technology',
-          image: 'https://images.unsplash.com/photo-1516116216624-53e697fedbea?w=400&h=200&fit=crop',
-        },
-      ];
+      // Extract events data from API response structure
+      const eventsData = response?.data?.events || response?.data?.events || [];
+      console.log('Raw Events Data:', eventsData); // Debug log
       
-      setEvents(mockEvents);
+      // Normalize events data for UI consumption
+      const normalizedEvents = eventsData.map(event => ({
+        id: event.id,
+        title: event.title || 'Untitled Event',
+        date: new Date(event.start_time).toLocaleDateString(),
+        time: new Date(event.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        location: event.location || 'Location TBD',
+        maxAttendees: event.capacity || 0,
+        registered: 0, // You might want to track this from API
+        category: event.category || 'General',
+        image: event.images?.[0]?.image_url || 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=400&h=200&fit=crop',
+        shortDescription: event.short_description || '',
+        longDescription: event.long_description || '',
+        startTime: event.start_time,
+        endTime: event.end_time,
+        fullAddress: event.full_address || '',
+      }));
+      
+      console.log('Normalized Events:', normalizedEvents); // Debug log
+      setEvents(normalizedEvents);
     } catch (error) {
       console.error('Error fetching group events:', error);
     }
@@ -101,61 +90,26 @@ export const GroupDetailPage = () => {
 
   const fetchGroupMembers = async () => {
     try {
-      // Mock data for demonstration - replace with actual API call
-      // const data = await groupService.getGroupMembers(id);
+      // Use real API call to get group members
+      const response = await groupService.getGroupDetail(id);
+      console.log('Members API Response:', response); // Debug log
       
-      const mockMembers = [
-        {
-          id: 1,
-          name: 'John Doe',
-          email: 'john.doe@example.com',
-          role: 'Admin',
-          avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop',
-          joinedDate: '2024-01-15',
-        },
-        {
-          id: 2,
-          name: 'Jane Smith',
-          email: 'jane.smith@example.com',
-          role: 'Member',
-          avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=100&h=100&fit=crop',
-          joinedDate: '2024-01-20',
-        },
-        {
-          id: 3,
-          name: 'Mike Johnson',
-          email: 'mike.johnson@example.com',
-          role: 'Member',
-          avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop',
-          joinedDate: '2024-02-01',
-        },
-        {
-          id: 4,
-          name: 'Sarah Williams',
-          email: 'sarah.williams@example.com',
-          role: 'Moderator',
-          avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop',
-          joinedDate: '2024-02-10',
-        },
-        {
-          id: 5,
-          name: 'David Brown',
-          email: 'david.brown@example.com',
-          role: 'Member',
-          avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop',
-          joinedDate: '2024-02-15',
-        },
-        {
-          id: 6,
-          name: 'Emily Davis',
-          email: 'emily.davis@example.com',
-          role: 'Member',
-          avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop',
-          joinedDate: '2024-02-20',
-        },
-      ];
+      // Extract members data from API response structure
+      const membersData = response?.data?.members || response?.data?.members || [];
+      console.log('Raw Members Data:', membersData); // Debug log
       
-      setMembers(mockMembers);
+      // Normalize members data for UI consumption
+      const normalizedMembers = membersData.map(member => ({
+        id: member.id,
+        name: `${member.first_name || ''} ${member.last_name || ''}`.trim() || 'Unknown User',
+        email: member.email || 'No email',
+        role: member.role || 'Member',
+        avatar: member.avatar || 'https://images.unsplash.com/photo-1472099645785-2616b612b786?w=100&h=100&fit=crop',
+        joinedDate: member.joined_at || new Date().toISOString(),
+      }));
+      
+      console.log('Normalized Members:', normalizedMembers); // Debug log
+      setMembers(normalizedMembers);
     } catch (error) {
       console.error('Error fetching group members:', error);
     }

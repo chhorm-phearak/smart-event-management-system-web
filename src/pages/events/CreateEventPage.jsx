@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { ChevronLeft, Plus, X, Calendar as CalendarIcon, MapPin, Upload, Type, AlignLeft, Users } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
+import { ChevronLeft, Plus, X, Calendar as CalendarIcon, MapPin, Upload, Type, AlignLeft, Users, QrCode } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { eventService, organizationService, uploadSingle } from '@/services';
 import { getApiOrigin } from '@/utils';
@@ -19,18 +21,59 @@ import {
 import { TimePicker } from '@/components/ui/time-picker';
 import { cn } from '@/lib/utils';
 
+const extractEventId = (value) => {
+  if (!value) return '';
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  if (typeof value !== 'object') return '';
+  return String(
+    value.id ??
+      value.event_id ??
+      value.eventId ??
+      value.event?.id ??
+      value.data?.id ??
+      value.data?.event_id ??
+      value.data?.event?.id ??
+      ''
+  );
+};
+
 export const CreateEventPage = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const organizationId = user?.organization_id || null;
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState(null); // 'creating' | 'uploading'
   const [showStaffModal, setShowStaffModal] = useState(false);
-  const [staffList, setStaffList] = useState([]);
-  const [staffLoading, setStaffLoading] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState([]);
   const [agendas, setAgendas] = useState([]);
   const [imagePreview, setImagePreview] = useState(null);
+  const [createdEventId, setCreatedEventId] = useState(null);
+  const [registeredQrCode, setRegisteredQrCode] = useState('');
+
+  const { data: staffListData, isLoading: staffLoading, isError: staffError } = useQuery({
+    queryKey: ['organization', organizationId, 'members'],
+    queryFn: async () => {
+      const { data } = await organizationService.getMembers(organizationId);
+      return (data || []).map((member) => ({
+        id: member.user_id,
+        user_id: member.user_id,
+        name: [member.first_name, member.last_name].filter(Boolean).join(' ') || 'Unknown',
+        email: member.email || '',
+        role: 'Coordinator',
+      }));
+    },
+    enabled: !!organizationId,
+  });
+  const staffList = staffListData ?? [];
+
+  const { data: createdEventList = [] } = useQuery({
+    queryKey: ['events'],
+    queryFn: async () => {
+      const eventRes = await eventService.getAllEvents();
+      return eventRes?.data?.events ?? eventRes?.events ?? [];
+    },
+    enabled: !!createdEventId,
+  });
 
   const [formData, setFormData] = useState({
     title: '',
@@ -155,33 +198,66 @@ export const CreateEventPage = () => {
     }
   }, [formData.eventDate, showCalendar]);
 
-  useEffect(() => {
-    if (organizationId) {
-      fetchOrganizationMembers();
-    }
-  }, [organizationId]);
+  const createEventMutation = useMutation({
+    mutationFn: async ({ payload, image }) => {
+      const createResponse = await eventService.createEvent(payload);
+      const eventId = extractEventId(createResponse);
+      if (eventId && image) {
+        setSubmitStatus('uploading');
+        try {
+          const uploadResponse = await uploadSingle(image);
+          const fileUrl = uploadResponse?.data?.file?.file_url;
+          if (fileUrl) {
+            const fullImageUrl = fileUrl.startsWith('http') ? fileUrl : `${getApiOrigin()}${fileUrl}`;
+            await eventService.addEventImages(eventId, [fullImageUrl]);
+          }
+        } finally {
+          setSubmitStatus(null);
+        }
+      }
+      return eventId;
+    },
+    onSuccess: (eventId) => {
+      const normalizedEventId = extractEventId(eventId);
+      setSubmitStatus(null);
+      toast.success('Event created successfully');
+      setCreatedEventId(normalizedEventId);
+      setRegisteredQrCode('');
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+    },
+    onError: (error) => {
+      setSubmitStatus(null);
+      const message = error.response?.data?.message || error.response?.data?.error || 'Failed to create event. Please try again.';
+      setErrors((prev) => ({ ...prev, submit: message }));
+    },
+  });
 
-  const fetchOrganizationMembers = async () => {
-    if (!organizationId) return;
-    try {
-      setStaffLoading(true);
-      const { data } = await organizationService.getMembers(organizationId);
-      const mappedStaff = (data || []).map((member) => ({
-        id: member.user_id,
-        user_id: member.user_id,
-        name: [member.first_name, member.last_name].filter(Boolean).join(' ') || 'Unknown',
-        email: member.email || '',
-        role: 'Coordinator',
-      }));
-      setStaffList(mappedStaff);
-    } catch (error) {
-      console.error('Error fetching organization members:', error);
-      setStaffList([]);
-      setErrors((prev) => ({ ...prev, staff: 'Failed to load organization members' }));
-    } finally {
-      setStaffLoading(false);
-    }
-  };
+  const registerEventMutation = useMutation({
+    mutationFn: (eventId) => {
+      const normalizedEventId = extractEventId(eventId);
+      if (!normalizedEventId) throw new Error('Event id not found for registration.');
+      return eventService.registerForEvent(normalizedEventId);
+    },
+    onSuccess: (response, eventId) => {
+      const nextQrCode =
+        response?.data?.qrcode ??
+        response?.data?.qr_code ??
+        response?.qrcode ??
+        response?.qr_code ??
+        '';
+      if (nextQrCode) {
+        setRegisteredQrCode(nextQrCode);
+      }
+      queryClient.invalidateQueries({ queryKey: ['event', eventId] });
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      toast.success('Event registered. QR code is ready.');
+    },
+    onError: (error, eventId) => {
+      const message = error.response?.data?.message || error.response?.data?.error || 'Failed to register event.';
+      setErrors((prev) => ({ ...prev, register: message }));
+      toast.error(message);
+    },
+  });
 
   const calculateDuration = () => {
     if (formData.startTime && formData.endTime && formData.eventDate) {
@@ -302,82 +378,124 @@ export const CreateEventPage = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-
-    if (!validateForm()) {
-      return;
-    }
-
-    setIsSubmitting(true);
+    if (!validateForm()) return;
     setSubmitStatus('creating');
     setErrors((prev) => ({ ...prev, submit: '' }));
 
-    try {
-      const startDateTime = new Date(`${formData.eventDate}T${formData.startTime}`);
-      const endDateTime = new Date(`${formData.eventDate}T${formData.endTime}`);
+    const startDateTime = new Date(`${formData.eventDate}T${formData.startTime}`);
+    const endDateTime = new Date(`${formData.eventDate}T${formData.endTime}`);
 
-      const payload = {
-        organization_id: organizationId,
-        group_id: '',
-        title: formData.title,
-        short_description: formData.shortDescription,
-        long_description: formData.description,
-        category: formData.category,
-        location: formData.location,
-        full_address: formData.fullAddress,
-        start_time: startDateTime.toISOString(),
-        end_time: endDateTime.toISOString(),
-        duration: formData.duration || Math.floor((endDateTime - startDateTime) / (1000 * 60)),
-        capacity: Number(formData.capacity),
-        status: 'DRAFT',
-        is_public: formData.isPublic ?? true,
-        agenda: agendas
-          .filter((a) => a.title?.trim() && (a.startTime || formData.startTime) && (a.endTime || formData.endTime))
-          .map((a) => {
-            const agendaStart = new Date(`${formData.eventDate}T${a.startTime || formData.startTime}`);
-            const agendaEnd = new Date(`${formData.eventDate}T${a.endTime || formData.endTime}`);
-            return {
-              title: a.title,
-              description: a.description || '',
-              start_time: agendaStart.toISOString(),
-              end_time: agendaEnd.toISOString(),
-            };
-          }),
-        staff: selectedStaff.map((s) => ({
-          user_id: s.user_id,
-          role: s.role || 'Coordinator',
-        })),
-      };
+    const payload = {
+      organization_id: organizationId,
+      group_id: '',
+      title: formData.title,
+      short_description: formData.shortDescription,
+      long_description: formData.description,
+      category: formData.category,
+      location: formData.location,
+      full_address: formData.fullAddress,
+      start_time: startDateTime.toISOString(),
+      end_time: endDateTime.toISOString(),
+      duration: formData.duration || Math.floor((endDateTime - startDateTime) / (1000 * 60)),
+      capacity: Number(formData.capacity),
+      status: 'DRAFT',
+      is_public: formData.isPublic ?? true,
+      agenda: agendas
+        .filter((a) => a.title?.trim() && (a.startTime || formData.startTime) && (a.endTime || formData.endTime))
+        .map((a) => {
+          const agendaStart = new Date(`${formData.eventDate}T${a.startTime || formData.startTime}`);
+          const agendaEnd = new Date(`${formData.eventDate}T${a.endTime || formData.endTime}`);
+          return {
+            title: a.title,
+            description: a.description || '',
+            start_time: agendaStart.toISOString(),
+            end_time: agendaEnd.toISOString(),
+          };
+        }),
+      staff: selectedStaff.map((s) => ({
+        user_id: s.user_id,
+        role: s.role || 'Coordinator',
+      })),
+    };
 
-      const createResponse = await eventService.createEvent(payload);
-      const eventId =
-        createResponse?.data?.id ??
-        createResponse?.data?.event?.id ??
-        createResponse?.id ??
-        createResponse?.event?.id;
-
-      if (eventId && formData.image) {
-        setSubmitStatus('uploading');
-        const uploadResponse = await uploadSingle(formData.image);
-        const fileUrl = uploadResponse?.data?.file?.file_url;
-        if (fileUrl) {
-          const fullImageUrl = fileUrl.startsWith('http') ? fileUrl : `${getApiOrigin()}${fileUrl}`;
-          await eventService.addEventImages(eventId, [fullImageUrl]);
-        }
-      }
-
-      toast.success('Event created successfully');
-      navigate(-1);
-    } catch (error) {
-      console.error('Error creating event:', error);
-      const message = error.response?.data?.message || error.response?.data?.error || 'Failed to create event. Please try again.';
-      setErrors((prev) => ({ ...prev, submit: message }));
-    } finally {
-      setIsSubmitting(false);
-      setSubmitStatus(null);
-    }
+    createEventMutation.mutate({ payload, image: formData.image });
   };
+
+  const handleRegisterEvent = () => {
+    const eventIdToRegister = extractEventId(createdEventId) || extractEventId(createdEvent);
+    if (!eventIdToRegister) {
+      const message = 'Event id is missing. Please create the event again.';
+      setErrors((prev) => ({ ...prev, register: message }));
+      toast.error(message);
+      return;
+    }
+    setErrors((prev) => ({ ...prev, register: '' }));
+    registerEventMutation.mutate(eventIdToRegister);
+  };
+
+  const createdEvent = createdEventList.find((event) => event.id === createdEventId);
+  const eventQrCode = registeredQrCode || createdEvent?.qrcode || createdEvent?.qr_code || '';
+  const isEventRegistered = eventQrCode.trim() !== '';
+
+  if (createdEventId) {
+    return (
+      <div className="w-full">
+        <div className="mb-6">
+          <Button type="button" size="sm" onClick={() => { setCreatedEventId(null); setRegisteredQrCode(''); setErrors({}); }} className="mb-4 bg-blue-600 text-white hover:bg-blue-700">
+            <ChevronLeft className="size-4" />
+            Back
+          </Button>
+          <h1 className="text-3xl font-bold tracking-tight">Event Created</h1>
+          <p className="text-muted-foreground mt-1">Register your event to generate a QR code for check-in.</p>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <QrCode className="size-5" />
+              Event QR Code
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {isEventRegistered ? (
+              <div className="flex flex-col items-center gap-4">
+                <div className="p-4 bg-white rounded-lg border border-border inline-block">
+                  <QRCodeSVG value={eventQrCode} size={200} level="M" />
+                </div>
+                <p className="text-sm text-muted-foreground">Scan this QR code at the event entrance.</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-4">
+                <p className="text-muted-foreground text-center">This event is not registered yet. Register to generate a QR code.</p>
+                <Button
+                  type="button"
+                  onClick={handleRegisterEvent}
+                  disabled={registerEventMutation.isPending}
+                  className="bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  {registerEventMutation.isPending ? 'Registering...' : 'Register event (get QR code)'}
+                </Button>
+                {errors.register && (
+                  <p className="text-sm text-destructive">{errors.register}</p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <div className="flex justify-end gap-3 mt-6 pb-6">
+          <Button type="button" variant="outline" onClick={() => navigate(-1)}>
+            Done
+          </Button>
+          <Button type="button" className="bg-blue-600 text-white hover:bg-blue-700" onClick={() => { setCreatedEventId(null); setRegisteredQrCode(''); setErrors({}); }}>
+            Create another event
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full">
@@ -556,7 +674,11 @@ export const CreateEventPage = () => {
               <Plus className="size-4" />
               {staffLoading ? 'Loading staff...' : 'Assign staff to support your event'}
             </Button>
-            {errors.staff && <p className="text-sm text-destructive mt-2">{errors.staff}</p>}
+            {(errors.staff || staffError) && (
+              <p className="text-sm text-destructive mt-2">
+                {errors.staff || 'Failed to load organization members'}
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -903,8 +1025,8 @@ export const CreateEventPage = () => {
           <Button type="button" variant="outline" onClick={() => navigate(-1)}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting} className="bg-blue-600 text-white hover:bg-blue-700">
-            {isSubmitting ? (submitStatus === 'uploading' ? 'Uploading image...' : 'Creating event...') : 'Create Event'}
+          <Button type="submit" disabled={createEventMutation.isPending} className="bg-blue-600 text-white hover:bg-blue-700">
+            {createEventMutation.isPending ? (submitStatus === 'uploading' ? 'Uploading image...' : 'Creating event...') : 'Create Event'}
           </Button>
         </div>
       </form>

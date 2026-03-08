@@ -37,6 +37,12 @@ export const eventService = {
     return response.data;
   },
 
+  // Get registered events for current user
+  getRegisteredEvents: async () => {
+    const response = await api.get('/events/registered');
+    return response.data;
+  },
+
   // Add images to event
   addEventImages: async (eventId, imageUrls) => {
     const response = await api.post(`/events/${eventId}/images`, {

@@ -1,99 +1,183 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
+import { QRCodeSVG } from 'qrcode.react';
 import { eventService } from '@/services';
+
+const isValidDate = (date) => date instanceof Date && !Number.isNaN(date.getTime());
+
+const formatTimeFromISO = (isoString) => {
+  if (!isoString) return '';
+  const date = new Date(isoString);
+  if (!isValidDate(date)) return '';
+  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+};
+
+const mapAgenda = (agenda) => {
+  if (!agenda || typeof agenda !== 'object') return [];
+  const list = Array.isArray(agenda) ? agenda : [agenda];
+  return list.map((a, i) => ({
+    id: a.id ?? i,
+    title: a.title ?? a.name ?? '—',
+    description: a.description ?? '',
+    startTime: a.start_time ? formatTimeFromISO(a.start_time) : '',
+    endTime: a.end_time ? formatTimeFromISO(a.end_time) : '',
+    speaker: a.speaker ?? '',
+  }));
+};
+
+/** Normalize API response: single-event endpoint may return { data }, { data: { event } }, { event }, or the event object */
+const getEventPayload = (res) => {
+  if (!res || typeof res !== 'object') return null;
+  const data = res.data ?? res;
+  if (data && typeof data === 'object' && data.event != null) return data.event;
+  return data ?? res.event ?? res;
+};
+
+const mapRawToEvent = (raw) => {
+  if (!raw || typeof raw !== 'object') return null;
+  const images = raw.images ?? raw.event_images ?? [];
+  const firstImage = Array.isArray(images) ? images[0] : images;
+  const imageUrl =
+    (firstImage && typeof firstImage === 'object' && (firstImage.image_url ?? firstImage.url)) ||
+    (typeof firstImage === 'string' ? firstImage : null) ||
+    'https://via.placeholder.com/1200x400?text=Event';
+  return {
+    id: raw.id,
+    title: raw.title ?? raw.name ?? '—',
+    shortDescription: raw.short_description ?? raw.shortDescription ?? '',
+    description: raw.long_description ?? raw.longDescription ?? raw.short_description ?? raw.shortDescription ?? '',
+    category: raw.category ?? 'Other',
+    eventDate: raw.start_time ?? raw.startTime,
+    startTime: (raw.start_time ?? raw.startTime) ? formatTimeFromISO(raw.start_time ?? raw.startTime) : '',
+    endTime: (raw.end_time ?? raw.endTime) ? formatTimeFromISO(raw.end_time ?? raw.endTime) : '',
+    location: raw.location ?? '—',
+    fullAddress: raw.full_address ?? raw.fullAddress ?? raw.location ?? '—',
+    capacity: raw.capacity ?? 0,
+    registered: raw.registered ?? raw.attendees_count ?? 0,
+    price: raw.price ?? 0,
+    organizer: raw.organization_name ?? raw.organizationName ?? raw.organizer ?? '—',
+    image: imageUrl,
+    qrcode: raw.qrcode ?? raw.qr_code ?? '',
+    registrationRequired: raw.registration_required ?? true,
+    qrCodeAvailable: raw.qr_code_available ?? true,
+    bringValidId: raw.bring_valid_id ?? true,
+    agendas: mapAgenda(raw.agenda ?? raw.agendas),
+  };
+};
 
 export const EventDetailPage = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const location = useLocation();
   const { id } = useParams();
   const fromGroup = location.state?.fromGroup;
-  const [event, setEvent] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [isRegistered, setIsRegistered] = useState(false);
+  const [registeredQrCode, setRegisteredQrCode] = useState('');
   const [showQrModal, setShowQrModal] = useState(false);
 
-  useEffect(() => {
-    fetchEventDetails();
-  }, [id]);
-
-  const fetchEventDetails = async () => {
-    if (!id) return;
-    try {
-      setLoading(true);
-      const res = await eventService.getAllEvents();
-      const events = res?.data?.events ?? res?.events ?? [];
-      const raw = events.find((e) => e.id === id) ?? null;
-      if (!raw) {
-        setEvent(null);
-        return;
-      }
-      const mapAgenda = (agenda) => {
-        if (!agenda || typeof agenda !== 'object') return [];
-        const list = Array.isArray(agenda) ? agenda : [agenda];
-        return list.map((a, i) => ({
-          id: a.id ?? i,
-          title: a.title ?? a.name ?? '—',
-          description: a.description ?? '',
-          startTime: a.start_time ? formatTimeFromISO(a.start_time) : '',
-          endTime: a.end_time ? formatTimeFromISO(a.end_time) : '',
-          speaker: a.speaker ?? '',
-        }));
-      };
-      setEvent({
-        id: raw.id,
-        title: raw.title,
-        shortDescription: raw.short_description,
-        description: raw.long_description || raw.short_description,
-        category: raw.category || 'Other',
-        eventDate: raw.start_time,
-        startTime: raw.start_time ? formatTimeFromISO(raw.start_time) : '',
-        endTime: raw.end_time ? formatTimeFromISO(raw.end_time) : '',
-        location: raw.location || '—',
-        fullAddress: raw.full_address || raw.location || '—',
-        capacity: raw.capacity ?? 0,
-        registered: 0,
-        price: 0,
-        organizer: raw.organization_name || '—',
-        image: raw.images?.[0]?.image_url || 'https://via.placeholder.com/1200x400?text=Event',
-        registrationRequired: true,
-        qrCodeAvailable: true,
-        bringValidId: true,
-        agendas: mapAgenda(raw.agenda),
-      });
-    } catch (error) {
-      console.error('Error fetching event details:', error);
-      setEvent(null);
-    } finally {
-      setLoading(false);
+  const getCachedEventById = (eventId) => {
+    if (!eventId) return null;
+    const cachedEventQueries = queryClient.getQueriesData({ queryKey: ['events'] });
+    for (const [, cachedData] of cachedEventQueries) {
+      const list = Array.isArray(cachedData)
+        ? cachedData
+        : cachedData?.events ?? cachedData?.data?.events ?? [];
+      if (!Array.isArray(list)) continue;
+      const found = list.find((item) => item?.id === eventId);
+      if (found) return found;
     }
+    return null;
   };
+  const cachedRawEvent = getCachedEventById(id);
+  const cachedMappedEvent = mapRawToEvent(cachedRawEvent);
+
+  const { data: event, isLoading: loading, error } = useQuery({
+    queryKey: ['event', id],
+    queryFn: async () => {
+      const res = await eventService.getEventById(id);
+      const raw = getEventPayload(res);
+      const mapped = mapRawToEvent(raw);
+      if (!mapped?.id) return null;
+      return mapped;
+    },
+    initialData: cachedMappedEvent ?? undefined,
+    enabled: !!id,
+  });
+
+  const { data: allEvents = [] } = useQuery({
+    queryKey: ['events', 'all-for-registration-status'],
+    queryFn: async () => {
+      const res = await eventService.getAllEvents();
+      return res?.data?.events ?? res?.events ?? [];
+    },
+    enabled: !!id,
+  });
+
+  const registerMutation = useMutation({
+    mutationFn: (eventId) => eventService.registerForEvent(eventId),
+    onSuccess: (response) => {
+      const qr =
+        response?.data?.qrcode ??
+        response?.data?.qr_code ??
+        response?.qrcode ??
+        response?.qr_code ??
+        '';
+      if (qr) setRegisteredQrCode(qr);
+      queryClient.invalidateQueries({ queryKey: ['event', id] });
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      toast.success('Registered successfully.');
+    },
+    onError: (error) => {
+      const message = error.response?.data?.message || error.response?.data?.error || 'Failed to register event.';
+      toast.error(message);
+    },
+  });
+
+  const eventFromAllEvents = allEvents.find((item) => item?.id === id);
+  const eventQrCode = (
+    registeredQrCode ||
+    eventFromAllEvents?.qrcode ||
+    eventFromAllEvents?.qr_code ||
+    event?.qrcode ||
+    ''
+  ).trim();
+  const isRegistered = eventQrCode !== '';
 
   const formatDate = (dateString) => {
-    if (!dateString) return '';
+    if (!dateString) return '—';
     const date = new Date(dateString);
+    if (!isValidDate(date)) return '—';
     return date.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
   };
 
   const formatTime = (timeString) => {
-    if (!timeString) return '';
-    if (timeString.includes('T') || timeString.includes(':')) {
-      return formatTimeFromISO(timeString);
+    if (!timeString) return '—';
+    if (timeString.includes('T') || String(timeString).match(/^\d{4}-\d{2}-\d{2}/)) {
+      const formatted = formatTimeFromISO(timeString);
+      return formatted || '—';
     }
-    const [hours, minutes] = timeString.split(':');
+    const [hours, minutes] = String(timeString).split(':');
     const hour = parseInt(hours, 10);
+    if (Number.isNaN(hour)) return '—';
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const displayHour = hour % 12 || 12;
     return `${displayHour}:${minutes || '00'} ${ampm}`;
   };
 
-  const formatTimeFromISO = (isoString) => {
-    if (!isoString) return '';
-    const date = new Date(isoString);
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  const formatTimeRange = (start, end) => {
+    const s = formatTime(start);
+    const e = formatTime(end);
+    if (s === '—' && e === '—') return '—';
+    return `${s} - ${e}`;
   };
 
   const handleRegister = () => {
-    setIsRegistered(true);
+    if (!id) {
+      toast.error('Missing event id.');
+      return;
+    }
+    registerMutation.mutate(id);
   };
 
   const handleShowQrTicket = () => {
@@ -109,22 +193,22 @@ export const EventDetailPage = () => {
     console.log('Downloading QR ticket...');
   };
 
-  const handleCopyTicketCode = () => {
-    // Copy ticket code functionality would go here
-    console.log('Copying ticket code...');
+  const handleCopyTicketCode = async () => {
+    if (!eventQrCode) {
+      toast.error('No QR code data available to copy.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(eventQrCode);
+      toast.success('QR code copied.');
+    } catch {
+      toast.error('Failed to copy QR code.');
+    }
   };
 
   const attendancePercentage = event?.capacity
     ? Math.round((event.registered / event.capacity) * 100)
     : 0;
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
 
   const handleBack = () => {
     if (fromGroup) {
@@ -134,10 +218,18 @@ export const EventDetailPage = () => {
     }
   };
 
-  if (!event) {
+  if (loading && !event) {
+    return (
+      <div className="flex justify-center items-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (error || !event) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500 text-lg">Event not found</p>
+        <p className="text-gray-500 text-lg">{error ? 'Failed to load event.' : 'Event not found'}</p>
         <button
           onClick={handleBack}
           className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -211,7 +303,7 @@ export const EventDetailPage = () => {
               <div className="space-y-1">
                 <p className="text-gray-900 font-bold text-lg">{formatDate(event.eventDate)}</p>
                 <p className="text-gray-700 font-semibold text-base">
-                  {formatTime(event.startTime)} - {formatTime(event.endTime)}
+                  {formatTimeRange(event.startTime, event.endTime)}
                 </p>
               </div>
             </div>
@@ -312,7 +404,7 @@ export const EventDetailPage = () => {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-sm font-medium text-gray-500">
-                            {formatTime(agenda.startTime)} - {formatTime(agenda.endTime)}
+                            {formatTimeRange(agenda.startTime, agenda.endTime)}
                           </span>
                         </div>
                         <h3 className="text-base font-semibold text-gray-900 mb-1">{agenda.title}</h3>
@@ -358,9 +450,10 @@ export const EventDetailPage = () => {
             {!isRegistered ? (
               <button
                 onClick={handleRegister}
+                disabled={registerMutation.isPending}
                 className="w-full bg-blue-600 text-white font-medium py-2.5 rounded-lg hover:bg-blue-700 transition-colors text-sm mb-4"
               >
-                Register for Event
+                {registerMutation.isPending ? 'Registering...' : 'Register for Event'}
               </button>
             ) : (
               <button
@@ -460,7 +553,7 @@ export const EventDetailPage = () => {
                     <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <span className="font-medium">{formatTime(event.startTime)} - {formatTime(event.endTime)}</span>
+                    <span className="font-medium">{formatTimeRange(event.startTime, event.endTime)}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -476,11 +569,13 @@ export const EventDetailPage = () => {
               <div className="bg-white border-2 border-gray-200 rounded-xl p-6 mb-6">
                 <div className="flex flex-col items-center">
                   <div className="w-64 h-64 bg-white border-4 border-blue-100 rounded-xl p-4 mb-4 flex items-center justify-center shadow-inner">
-                    <div className="w-full h-full bg-gray-100 rounded-lg flex items-center justify-center">
-                      <svg className="w-48 h-48 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zM3 21h8v-8H3v8zm2-6h4v4H5v-4zM13 3v8h8V3h-8zm6 6h-4V5h4v4zM13 13h2v2h-2zM15 15h2v2h-2zM13 17h2v2h-2zM17 17h2v2h-2zM19 19h2v2h-2zM15 19h2v2h-2zM17 13h2v2h-2zM19 15h2v2h-2z"/>
-                      </svg>
-                    </div>
+                    {isRegistered ? (
+                      <QRCodeSVG value={eventQrCode} size={220} level="M" />
+                    ) : (
+                      <div className="w-full h-full bg-gray-100 rounded-lg flex items-center justify-center text-xs text-gray-500 text-center px-4">
+                        Register first to generate QR code
+                      </div>
+                    )}
                   </div>
                   <p className="text-xs text-gray-500 text-center mb-4">
                     Scan this QR code at the event entrance
@@ -488,19 +583,20 @@ export const EventDetailPage = () => {
                 </div>
               </div>
 
-              {/* Ticket Code Section */}
+              {/* QR Data Section */}
               <div className="bg-gray-50 rounded-xl p-4 mb-6">
                 <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
-                  Ticket Code
+                  QR Code Data
                 </label>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 px-4 py-3 bg-white border-2 border-gray-300 rounded-lg font-mono font-semibold text-gray-900 text-center">
-                    TKT-{event.id}-001
+                    {isRegistered ? eventQrCode : 'Not registered yet'}
                   </div>
                   <button
                     onClick={handleCopyTicketCode}
+                    disabled={!isRegistered}
                     className="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2"
-                    title="Copy ticket code"
+                    title="Copy QR code data"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />

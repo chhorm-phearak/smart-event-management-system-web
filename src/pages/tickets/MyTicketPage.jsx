@@ -1,5 +1,66 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { eventService } from '@/services';
+import { getApiOrigin } from '@/utils';
+
+const isValidDate = (date) => date instanceof Date && !Number.isNaN(date.getTime());
+
+const formatTimeFromISO = (isoString) => {
+  if (!isoString) return '';
+  const date = new Date(isoString);
+  if (!isValidDate(date)) return '';
+  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+};
+
+const getRegisteredEventsPayload = (res) => {
+  if (!res || typeof res !== 'object') return [];
+  if (Array.isArray(res)) return res;
+  if (Array.isArray(res.events)) return res.events;
+  if (Array.isArray(res.data)) return res.data;
+  if (Array.isArray(res.data?.events)) return res.data.events;
+  return [];
+};
+
+const toAbsoluteImageUrl = (value) => {
+  if (!value || typeof value !== 'string') return '';
+  if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:') || value.startsWith('blob:')) {
+    return value;
+  }
+  const apiOrigin = getApiOrigin();
+  if (value.startsWith('/')) return `${apiOrigin}${value}`;
+  return `${apiOrigin}/${value}`;
+};
+
+const mapRawTicket = (raw, index = 0) => {
+  const images = raw?.images ?? raw?.event_images ?? [];
+  const firstImage = Array.isArray(images) ? images[0] : images;
+  const rawImageUrl =
+    (firstImage && typeof firstImage === 'object' && (firstImage.image_url ?? firstImage.url)) ||
+    (typeof firstImage === 'string' ? firstImage : null) ||
+    raw?.image_url ||
+    raw?.image;
+  const imageUrl = toAbsoluteImageUrl(rawImageUrl) || 'https://via.placeholder.com/1200x400?text=Event';
+
+  const start = raw?.start_time ?? raw?.startTime ?? '';
+  const fallbackTime = formatTimeFromISO(start);
+
+  return {
+    id: raw?.ticket_id ?? raw?.registration_id ?? raw?.id ?? `ticket-${index}`,
+    eventId: raw?.event_id ?? raw?.eventId ?? raw?.id,
+    title: raw?.title ?? raw?.name ?? 'Untitled event',
+    category: raw?.category ?? 'Other',
+    date: raw?.event_date ?? raw?.date ?? start ?? '',
+    time: raw?.time ?? fallbackTime ?? '',
+    location: raw?.location ?? raw?.venue ?? 'TBA',
+    fullAddress: raw?.full_address ?? raw?.fullAddress ?? raw?.location ?? 'TBA',
+    registrationDate: raw?.registered_at ?? raw?.registration_date ?? raw?.created_at ?? start ?? '',
+    price: raw?.price ?? 0,
+    status: raw?.status ?? 'active',
+    image: imageUrl,
+    qrCode: raw?.qrcode ?? raw?.qr_code ?? raw?.ticket_code ?? raw?.code ?? '',
+    organizer: raw?.organization_name ?? raw?.organizationName ?? raw?.organizer ?? 'Unknown organizer',
+  };
+};
 
 export const MyTicketPage = () => {
   const navigate = useNavigate();
@@ -18,77 +79,13 @@ export const MyTicketPage = () => {
   const fetchMyTickets = async () => {
     try {
       setLoading(true);
-      // Mock data for demonstration
-      const mockTickets = [
-        {
-          id: 1,
-          eventId: 1,
-          title: 'Tech Conference 2024',
-          category: 'Technology',
-          date: '2024-03-15',
-          time: '09:00',
-          location: 'Convention Center, New York',
-          fullAddress: '123 Main Street, New York',
-          registrationDate: '2024-02-10',
-          price: 0,
-          status: 'active',
-          image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400&h=200&fit=crop',
-          qrCode: 'TKT-2024-001',
-          organizer: 'Tech Events Inc.'
-        },
-        {
-          id: 2,
-          eventId: 2,
-          title: 'AI & Machine Learning Summit',
-          category: 'Technology',
-          date: '2024-04-20',
-          time: '10:00',
-          location: 'Tech Hub, San Francisco',
-          fullAddress: '456 Innovation Drive, San Francisco',
-          registrationDate: '2024-03-15',
-          price: 299,
-          status: 'active',
-          image: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=400&h=200&fit=crop',
-          qrCode: 'TKT-2024-002',
-          organizer: 'AI Institute'
-        },
-        {
-          id: 3,
-          eventId: 3,
-          title: 'Web Development Workshop',
-          category: 'Education',
-          date: '2024-05-10',
-          time: '14:00',
-          location: 'Online',
-          fullAddress: 'Virtual Event',
-          registrationDate: '2024-04-01',
-          price: 99,
-          status: 'active',
-          image: 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=400&h=200&fit=crop',
-          qrCode: 'TKT-2024-003',
-          organizer: 'Code Academy'
-        },
-        {
-          id: 4,
-          eventId: 4,
-          title: 'Startup Networking Night',
-          category: 'Business',
-          date: '2024-06-15',
-          time: '18:00',
-          location: 'Business Center, Boston',
-          fullAddress: '789 Commerce Street, Boston',
-          registrationDate: '2024-05-20',
-          price: 0,
-          status: 'active',
-          image: 'https://images.unsplash.com/photo-1515189828136-35d2523c5b06?w=400&h=200&fit=crop',
-          qrCode: 'TKT-2024-004',
-          organizer: 'Startup Hub'
-        }
-      ];
-      
-      setTickets(mockTickets);
+      const response = await eventService.getRegisteredEvents();
+      const rawTickets = getRegisteredEventsPayload(response);
+      const normalizedTickets = rawTickets.map((item, index) => mapRawTicket(item, index));
+      setTickets(normalizedTickets);
     } catch (error) {
       console.error('Error fetching tickets:', error);
+      setTickets([]);
     } finally {
       setLoading(false);
     }
@@ -133,9 +130,10 @@ export const MyTicketPage = () => {
   };
 
   const filteredTickets = tickets.filter(ticket => {
-    const matchesSearch = ticket.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         ticket.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         ticket.organizer.toLowerCase().includes(searchTerm.toLowerCase());
+    const normalizedSearch = searchTerm.toLowerCase();
+    const matchesSearch = ticket.title.toLowerCase().includes(normalizedSearch) ||
+                         (ticket.location ?? '').toLowerCase().includes(normalizedSearch) ||
+                         (ticket.organizer ?? '').toLowerCase().includes(normalizedSearch);
     
     const matchesCategory = selectedCategory === 'all' || ticket.category === selectedCategory;
     

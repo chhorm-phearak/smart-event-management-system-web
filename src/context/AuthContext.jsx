@@ -16,7 +16,9 @@ export const AuthProvider = ({ children }) => {
         setIsAuthenticated(true);
         try {
           const profileData = await authService.getProfile();
+          console.log('Profile API Response:', profileData); // Debug log
           const userData = profileData?.data?.user || profileData?.user || profileData;
+          console.log('Extracted User Data:', userData); // Debug log
           if (userData) setUser(userData);
         } catch {
           // Token may be invalid, keep user null
@@ -30,9 +32,19 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       const data = await authService.login(email, password);
+      console.log('Login API Response:', data); // Debug log
       setIsAuthenticated(true);
       const userData = data?.data?.user || data?.user || { email };
+      console.log('Login User Data:', userData); // Debug log
       setUser(userData);
+      
+      // Handle redirect after login
+      const redirectPath = sessionStorage.getItem('redirectAfterLogin');
+      if (redirectPath) {
+        sessionStorage.removeItem('redirectAfterLogin');
+        window.location.href = redirectPath;
+      }
+      
       return { success: true, data };
     } catch (error) {
       return {

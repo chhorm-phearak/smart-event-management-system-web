@@ -44,4 +44,16 @@ export const groupService = {
     });
     return response.data;
   },
+
+  // Get invite link information by token
+  getInviteInfo: async (token) => {
+    const response = await api.get(`/invite/info/${token}`);
+    return response.data;
+  },
+
+  // Get latest invite links for the organization
+  getLatestInviteLinks: async () => {
+    const response = await api.get('/organization/latest-invite-links');
+    return response.data;
+  },
 };

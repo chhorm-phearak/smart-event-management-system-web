@@ -96,6 +96,10 @@ export const GroupPage = () => {
   // Custom dropdown state
   const [showGroupDropdown, setShowGroupDropdown] = useState(false);
   const [inviteLink, setInviteLink] = useState('');
+  const [inviteInfo, setInviteInfo] = useState(null); // Store invite link information
+  const [inviteInfoLoading, setInviteInfoLoading] = useState(false);
+  const [latestInviteLinks, setLatestInviteLinks] = useState([]); // Store latest invite links for organization
+  const [checkingExistingLink, setCheckingExistingLink] = useState(false); // Loading state for checking existing links
 
   // Event creation state
   const [showCreateEventModal, setShowCreateEventModal] = useState(false);
@@ -396,6 +400,10 @@ export const GroupPage = () => {
       const inviteUrl = response.data.data.inviteUrl;
       setInviteLink(inviteUrl);
       
+      // Extract token from the invite URL to fetch invite info
+      const token = inviteUrl.split('/').pop();
+      await fetchInviteInfo(token);
+      
       // Auto-copy to clipboard
       navigator.clipboard.writeText(inviteUrl);
       alert('Invite link generated and copied to clipboard!');
@@ -403,6 +411,70 @@ export const GroupPage = () => {
     } catch (error) {
       console.error('Failed to generate invite link:', error);
       setError(error.response?.data?.message || error.message || 'Failed to generate invite link');
+    }
+  };
+
+  const fetchInviteInfo = async (token) => {
+    if (!token) return;
+    
+    try {
+      setInviteInfoLoading(true);
+      const response = await groupService.getInviteInfo(token);
+      setInviteInfo(response.data);
+    } catch (error) {
+      console.error('Failed to fetch invite info:', error);
+      // Don't set error here as it's not critical
+    } finally {
+      setInviteInfoLoading(false);
+    }
+  };
+
+  const checkExistingInviteLink = async (groupId) => {
+    if (!groupId) return;
+    
+    try {
+      setCheckingExistingLink(true);
+      // Fetch latest invite links for the organization
+      const response = await groupService.getLatestInviteLinks();
+      const inviteLinks = response.data.invite_links || [];
+      setLatestInviteLinks(inviteLinks);
+      
+      // Find if there's an existing invite link for this group
+      const existingLink = inviteLinks.find(link => link.group_id === groupId);
+      if (existingLink) {
+        setInviteLink(existingLink.invite_url);
+        setInviteInfo({
+          invite_link: existingLink.invite_link,
+          expired_date: existingLink.expired_date,
+          number_of_uses: existingLink.number_of_uses,
+          max_uses: existingLink.max_uses,
+          message: existingLink.message
+        });
+      } else {
+        // Clear existing invite info if no link found for this group
+        setInviteInfo(null);
+        setInviteLink('');
+      }
+    } catch (error) {
+      console.error('Failed to check existing invite link:', error);
+      setInviteInfo(null);
+      setInviteLink('');
+      setLatestInviteLinks([]);
+    } finally {
+      setCheckingExistingLink(false);
+    }
+  };
+
+  const fetchLatestInviteLinks = async () => {
+    try {
+      setLatestInviteLinksLoading(true);
+      const response = await groupService.getLatestInviteLinks();
+      setLatestInviteLinks(response.data.invite_links || []);
+    } catch (error) {
+      console.error('Failed to fetch latest invite links:', error);
+      setLatestInviteLinks([]);
+    } finally {
+      setLatestInviteLinksLoading(false);
     }
   };
 
@@ -661,6 +733,7 @@ export const GroupPage = () => {
                             onClick={() => {
                               setSelectedGroupForInvite(group.id);
                               setShowGroupDropdown(false);
+                              checkExistingInviteLink(group.id);
                             }}
                             className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-blue-50 focus:outline-none transition-colors duration-150 border-b border-gray-100 last:border-b-0"
                           >
@@ -961,18 +1034,116 @@ export const GroupPage = () => {
                       </div>
                     </div>
                   )}
+
+                  {/* Invite Link Information */}
+                  {inviteInfoLoading ? (
+                    <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex items-center justify-center py-4">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
+                        <span className="text-sm text-gray-600">Loading invite information...</span>
+                      </div>
+                    </div>
+                  ) : inviteInfo ? (
+                    <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                      <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Invite Link Information
+                      </h4>
+                      
+                      <div className="space-y-3">
+                        {/* Invite Message */}
+                        {inviteInfo.message && (
+                          <div className="bg-white rounded-lg p-3 border border-blue-100">
+                            <p className="text-sm text-blue-700 italic">"{inviteInfo.message}"</p>
+                          </div>
+                        )}
+                        
+                        {/* Usage Statistics */}
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div className="bg-white rounded-lg p-3 border border-blue-100">
+                            <div className="flex items-center gap-2 text-gray-600 mb-1">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                              </svg>
+                              <span>Usage</span>
+                            </div>
+                            <p className="font-semibold text-gray-900">
+                              {inviteInfo.number_of_uses} / {inviteInfo.max_uses === 0 ? 'Unlimited' : inviteInfo.max_uses}
+                            </p>
+                          </div>
+                          
+                          <div className="bg-white rounded-lg p-3 border border-blue-100">
+                            <div className="flex items-center gap-2 text-gray-600 mb-1">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <span>Expires</span>
+                            </div>
+                            <p className="font-semibold text-gray-900">
+                              {inviteInfo.expired_date 
+                                ? new Date(inviteInfo.expired_date).toLocaleDateString()
+                                : 'Never'
+                              }
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {/* Progress Bar */}
+                        {inviteInfo.max_uses > 0 && (
+                          <div className="bg-white rounded-lg p-3 border border-blue-100">
+                            <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+                              <span>Link Usage Progress</span>
+                              <span>{Math.round((inviteInfo.number_of_uses / inviteInfo.max_uses) * 100)}%</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div
+                                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${Math.round((inviteInfo.number_of_uses / inviteInfo.max_uses) * 100)}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Status Badge */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-500">Link Status</span>
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            inviteInfo.number_of_uses >= inviteInfo.max_uses && inviteInfo.max_uses > 0
+                              ? 'bg-red-100 text-red-800 border border-red-200'
+                              : new Date(inviteInfo.expired_date) < new Date() && inviteInfo.expired_date
+                              ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                              : 'bg-green-100 text-green-800 border border-green-200'
+                          }`}>
+                            {inviteInfo.number_of_uses >= inviteInfo.max_uses && inviteInfo.max_uses > 0
+                              ? 'Fully Used'
+                              : new Date(inviteInfo.expired_date) < new Date() && inviteInfo.expired_date
+                              ? 'Expired'
+                              : 'Active'
+                            }
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                   
-                  {!inviteLink && selectedGroupForInvite && (
+                  {checkingExistingLink ? (
+                    <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex items-center justify-center py-4">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
+                        <span className="text-sm text-gray-600">Checking for existing invite links...</span>
+                      </div>
+                    </div>
+                  ) : !inviteLink && selectedGroupForInvite ? (
                     <p className="text-gray-500 text-center py-8">
                       Configure settings above and click "Generate Invite Link" to create a shareable link for your group
                     </p>
-                  )}
-                  
-                  {!selectedGroupForInvite && (
+                  ) : !selectedGroupForInvite ? (
                     <p className="text-gray-500 text-center py-8">
                       Please select a group first to generate an invite link
                     </p>
-                  )}
+                  ) : null}
                 </div>
               )}
               </div>

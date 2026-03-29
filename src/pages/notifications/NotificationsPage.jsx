@@ -1,11 +1,71 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useSocket } from '@/hooks/useSocket';
+import { notificationService } from '@/services/notificationService';
+import toast from 'react-hot-toast';
 
 export const NotificationsPage = () => {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all, unread, invites, schedule
+  const [isConnected, setIsConnected] = useState(false);
+  const { onNotification, isConnected: checkConnection } = useSocket();
+
+  // Transform backend notification to frontend format
+  const transformNotification = (notification) => ({
+    id: notification.id,
+    type: notification.type?.toLowerCase() || 'general',
+    title: notification.title,
+    message: notification.message,
+    eventId: notification.event_id,
+    eventName: notification.data?.event_name || '',
+    groupId: notification.group_id,
+    groupName: notification.data?.group_name || '',
+    organizationId: notification.organization_id,
+    invitationId: notification.invitation_id,
+    actorUserId: notification.actor_user_id,
+    timestamp: notification.created_at,
+    read: notification.is_read || false,
+    status: notification.data?.status || 'pending',
+    oldDate: notification.data?.old_date,
+    newDate: notification.data?.new_date,
+    oldTime: notification.data?.old_time,
+    newTime: notification.data?.new_time,
+    data: notification.data,
+  });
+
+  // Handle incoming real-time notification
+  const handleNewNotification = useCallback((notification) => {
+    console.log('New notification received:', notification);
+    
+    const transformedNotification = transformNotification(notification);
+
+    // Add new notification to the top of the list
+    setNotifications(prev => [transformedNotification, ...prev]);
+
+    // Show toast notification
+    toast(notification.title, {
+      icon: '🔔',
+      duration: 4000,
+    });
+  }, []);
+
+  // Set up socket connection and listeners
+  useEffect(() => {
+    const cleanup = onNotification(handleNewNotification);
+    setIsConnected(checkConnection());
+
+    // Check connection status periodically
+    const interval = setInterval(() => {
+      setIsConnected(checkConnection());
+    }, 5000);
+
+    return () => {
+      cleanup();
+      clearInterval(interval);
+    };
+  }, [onNotification, handleNewNotification, checkConnection]);
 
   useEffect(() => {
     fetchNotifications();
@@ -14,85 +74,12 @@ export const NotificationsPage = () => {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      // Mock data for demonstration - replace with actual API call
-      const mockNotifications = [
-        {
-          id: 1,
-          type: 'staff_invite',
-          title: 'Staff Invitation',
-          message: 'You have been invited to be a staff member for "Tech Conference 2025"',
-          eventName: 'Tech Conference 2025',
-          eventId: 1,
-          timestamp: '2025-01-20T10:30:00',
-          read: false,
-          status: 'pending' // pending, accepted, rejected
-        },
-        {
-          id: 2,
-          type: 'group_invite',
-          title: 'Group Invitation',
-          message: 'You have been invited to join "Tech Enthusiasts" group',
-          groupName: 'Tech Enthusiasts',
-          groupId: 1,
-          timestamp: '2025-01-19T14:20:00',
-          read: false,
-          status: 'pending'
-        },
-        {
-          id: 3,
-          type: 'schedule_change',
-          title: 'Event Schedule Changed',
-          message: 'The schedule for "Web Development Workshop" has been updated',
-          eventName: 'Web Development Workshop',
-          eventId: 3,
-          oldDate: '2025-02-15',
-          newDate: '2025-02-20',
-          oldTime: '14:00',
-          newTime: '15:00',
-          timestamp: '2025-01-18T09:15:00',
-          read: true
-        },
-        {
-          id: 4,
-          type: 'staff_invite',
-          title: 'Staff Invitation',
-          message: 'You have been invited to be a staff member for "AI & Machine Learning Summit"',
-          eventName: 'AI & Machine Learning Summit',
-          eventId: 2,
-          timestamp: '2025-01-17T16:45:00',
-          read: true,
-          status: 'accepted'
-        },
-        {
-          id: 5,
-          type: 'group_invite',
-          title: 'Group Invitation',
-          message: 'You have been invited to join "Startup Founders" group',
-          groupName: 'Startup Founders',
-          groupId: 2,
-          timestamp: '2025-01-16T11:30:00',
-          read: true,
-          status: 'rejected'
-        },
-        {
-          id: 6,
-          type: 'schedule_change',
-          title: 'Event Schedule Changed',
-          message: 'The schedule for "Tech Conference 2025" has been updated',
-          eventName: 'Tech Conference 2025',
-          eventId: 1,
-          oldDate: '2025-03-15',
-          newDate: '2025-03-18',
-          oldTime: '09:00',
-          newTime: '10:00',
-          timestamp: '2025-01-15T08:00:00',
-          read: true
-        }
-      ];
-      
-      setNotifications(mockNotifications);
+      const response = await notificationService.getNotifications();
+      const transformedNotifications = (response.data || []).map(transformNotification);
+      setNotifications(transformedNotifications);
     } catch (error) {
       console.error('Error fetching notifications:', error);
+      toast.error('Failed to load notifications');
     } finally {
       setLoading(false);
     }
@@ -117,8 +104,9 @@ export const NotificationsPage = () => {
 
   const handleAcceptInvite = async (notification) => {
     try {
-      // API call would go here
-      // await notificationService.acceptInvite(notification.id);
+      if (notification.invitationId) {
+        await notificationService.acceptInvitation(notification.invitationId);
+      }
       
       setNotifications(notifications.map(notif => 
         notif.id === notification.id 
@@ -126,38 +114,62 @@ export const NotificationsPage = () => {
           : notif
       ));
       
+      toast.success('Invitation accepted!');
+      
       // Navigate based on type
-      if (notification.type === 'staff_invite') {
-        navigate(`/manage-events/${notification.eventId}/staff`);
+      if (notification.type === 'staff_invite' || notification.type === 'invitation') {
+        navigate(`/events/${notification.eventId}`);
       } else if (notification.type === 'group_invite') {
         navigate(`/groups/${notification.groupId}`);
       }
     } catch (error) {
       console.error('Error accepting invite:', error);
+      toast.error('Failed to accept invitation');
     }
   };
 
   const handleRejectInvite = async (notification) => {
     try {
-      // API call would go here
-      // await notificationService.rejectInvite(notification.id);
+      if (notification.invitationId) {
+        await notificationService.rejectInvitation(notification.invitationId);
+      }
       
       setNotifications(notifications.map(notif => 
         notif.id === notification.id 
           ? { ...notif, status: 'rejected', read: true }
           : notif
       ));
+      
+      toast.success('Invitation rejected');
     } catch (error) {
       console.error('Error rejecting invite:', error);
+      toast.error('Failed to reject invitation');
     }
   };
 
-  const handleMarkAsRead = (notificationId) => {
-    setNotifications(notifications.map(notif => 
-      notif.id === notificationId 
-        ? { ...notif, read: true }
-        : notif
-    ));
+  const handleMarkAsRead = async (notificationId) => {
+    try {
+      await notificationService.markAsRead(notificationId);
+      setNotifications(notifications.map(notif => 
+        notif.id === notificationId 
+          ? { ...notif, read: true }
+          : notif
+      ));
+    } catch (error) {
+      console.error('Error marking as read:', error);
+      toast.error('Failed to mark as read');
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await notificationService.markAllAsRead();
+      setNotifications(notifications.map(notif => ({ ...notif, read: true })));
+      toast.success('All notifications marked as read');
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+      toast.error('Failed to mark all as read');
+    }
   };
 
   const handleViewEvent = (eventId) => {
@@ -167,11 +179,7 @@ export const NotificationsPage = () => {
   const getNotificationIcon = (type) => {
     switch (type) {
       case 'staff_invite':
-        return (
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-          </svg>
-        );
+      case 'invitation':
       case 'group_invite':
         return (
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -185,13 +193,18 @@ export const NotificationsPage = () => {
           </svg>
         );
       default:
-        return null;
+        return (
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+          </svg>
+        );
     }
   };
 
   const getNotificationColor = (type) => {
     switch (type) {
       case 'staff_invite':
+      case 'invitation':
         return 'bg-blue-100 text-blue-600 border-blue-200';
       case 'group_invite':
         return 'bg-purple-100 text-purple-600 border-purple-200';
@@ -202,9 +215,14 @@ export const NotificationsPage = () => {
     }
   };
 
+  // Check if notification is an invite type
+  const isInviteType = (type) => {
+    return ['staff_invite', 'group_invite', 'invitation'].includes(type);
+  };
+
   const filteredNotifications = notifications.filter(notif => {
     if (filter === 'unread') return !notif.read;
-    if (filter === 'invites') return notif.type === 'staff_invite' || notif.type === 'group_invite';
+    if (filter === 'invites') return isInviteType(notif.type);
     if (filter === 'schedule') return notif.type === 'schedule_change';
     return true;
   });
@@ -225,7 +243,17 @@ export const NotificationsPage = () => {
       <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 text-white shadow-lg">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold mb-2">Notifications</h1>
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-3xl font-bold">Notifications</h1>
+              <span className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${
+                isConnected 
+                  ? 'bg-green-500/20 text-green-100' 
+                  : 'bg-red-500/20 text-red-100'
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></span>
+                {isConnected ? 'Live' : 'Offline'}
+              </span>
+            </div>
             <p className="text-blue-100">
               {unreadCount > 0 
                 ? `${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}`
@@ -233,10 +261,23 @@ export const NotificationsPage = () => {
               }
             </p>
           </div>
-          <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-            </svg>
+          <div className="flex items-center gap-3">
+            {unreadCount > 0 && (
+              <button
+                onClick={handleMarkAllAsRead}
+                className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg text-sm font-medium transition-colors backdrop-blur-sm flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Mark all as read
+              </button>
+            )}
+            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+            </div>
           </div>
         </div>
       </div>
@@ -246,7 +287,7 @@ export const NotificationsPage = () => {
         {[
           { key: 'all', label: 'All', count: notifications.length },
           { key: 'unread', label: 'Unread', count: unreadCount },
-          { key: 'invites', label: 'Invites', count: notifications.filter(n => n.type === 'staff_invite' || n.type === 'group_invite').length },
+          { key: 'invites', label: 'Invites', count: notifications.filter(n => isInviteType(n.type)).length },
           { key: 'schedule', label: 'Schedule', count: notifications.filter(n => n.type === 'schedule_change').length }
         ].map(tab => (
           <button
@@ -369,7 +410,7 @@ export const NotificationsPage = () => {
                         <span className="text-xs text-gray-500">{formatTimestamp(notification.timestamp)}</span>
                         
                         {/* Action Buttons for Invites */}
-                        {notification.type === 'staff_invite' || notification.type === 'group_invite' ? (
+                        {isInviteType(notification.type) ? (
                           notification.status === 'pending' ? (
                             <div className="flex gap-2">
                               <button
@@ -394,19 +435,19 @@ export const NotificationsPage = () => {
                           ) : (
                             <button
                               onClick={() => {
-                                if (notification.type === 'staff_invite') {
-                                  handleViewEvent(notification.eventId);
-                                } else if (notification.type === 'group_invite') {
+                                if (notification.type === 'group_invite') {
                                   navigate(`/groups/${notification.groupId}`);
+                                } else {
+                                  handleViewEvent(notification.eventId);
                                 }
                               }}
                               className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
                             >
-                              View {notification.type === 'staff_invite' ? 'Event' : 'Group'}
+                              View {notification.type === 'group_invite' ? 'Group' : 'Event'}
                             </button>
                           )
                         ) : (
-                          notification.type === 'schedule_change' && (
+                          notification.eventId && (
                             <button
                               onClick={() => handleViewEvent(notification.eventId)}
                               className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"

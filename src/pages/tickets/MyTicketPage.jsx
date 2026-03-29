@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { eventService } from '@/services';
 import { getApiOrigin } from '@/utils';
 
@@ -44,6 +45,19 @@ const mapRawTicket = (raw, index = 0) => {
   const start = raw?.start_time ?? raw?.startTime ?? '';
   const fallbackTime = formatTimeFromISO(start);
 
+  const qrImage = (
+    (raw?.qr_image_url || raw?.qrcode) ??
+    raw?.qr_code ??
+    ''
+  ).toString().trim();
+  const qrTicket = (
+    raw?.qr_ticket ??
+    raw?.qrTicket ??
+    raw?.ticket_code ??
+    raw?.code ??
+    ''
+  ).toString().trim();
+
   return {
     id: raw?.ticket_id ?? raw?.registration_id ?? raw?.id ?? `ticket-${index}`,
     eventId: raw?.event_id ?? raw?.eventId ?? raw?.id,
@@ -57,7 +71,8 @@ const mapRawTicket = (raw, index = 0) => {
     price: raw?.price ?? 0,
     status: raw?.status ?? 'active',
     image: imageUrl,
-    qrCode: raw?.qrcode ?? raw?.qr_code ?? raw?.ticket_code ?? raw?.code ?? '',
+    qrImage,
+    qrTicket,
     organizer: raw?.organization_name ?? raw?.organizationName ?? raw?.organizer ?? 'Unknown organizer',
   };
 };
@@ -122,10 +137,88 @@ export const MyTicketPage = () => {
     setSelectedTicket(null);
   };
 
-  const handleCopyTicketCode = () => {
-    if (selectedTicket) {
-      navigator.clipboard.writeText(selectedTicket.qrCode);
-      // You could add a toast notification here
+  const handleCopyTicketCode = async () => {
+    if (!selectedTicket?.qrTicket) {
+      toast.error('No ticket code available to copy.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(selectedTicket.qrTicket);
+      toast.success('Ticket code copied to clipboard!');
+    } catch (error) {
+      console.error('Copy error:', error);
+      toast.error('Failed to copy ticket code.');
+    }
+  };
+
+  const handleDownloadQr = async () => {
+    if (!selectedTicket?.qrImage) {
+      toast.error('No QR code available to download.');
+      return;
+    }
+
+    try {
+      const sanitizedName = selectedTicket.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const filename = `${sanitizedName}_ticket_${timestamp}.png`;
+      
+      if (selectedTicket.qrImage.startsWith('data:')) {
+        // Handle base64 data
+        const link = document.createElement('a');
+        link.href = selectedTicket.qrImage;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        // Handle URL - use canvas to convert image to blob
+        const qrUrl = selectedTicket.qrImage.startsWith('http') 
+          ? selectedTicket.qrImage 
+          : `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}${selectedTicket.qrImage}`;
+        
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = () => {
+            // Fallback to simple download
+            const link = document.createElement('a');
+            link.href = qrUrl;
+            link.download = filename;
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            resolve();
+          };
+          img.src = qrUrl;
+        });
+        
+        if (img.complete && img.naturalHeight !== 0) {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          
+          canvas.toBlob((blob) => {
+            const blobUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => window.URL.revokeObjectURL(blobUrl), 100);
+          }, 'image/png');
+        }
+      }
+      
+      toast.success('Ticket downloaded successfully!');
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('Failed to download ticket. Please try again.');
     }
   };
 
@@ -372,11 +465,22 @@ export const MyTicketPage = () => {
                 {/* QR Code Section - Full width, below detail */}
                 <div className="w-full bg-white border-2 border-gray-200 rounded-xl p-8 flex flex-col items-center justify-center">
                   <div className="w-72 h-72 bg-white border-4 border-blue-100 rounded-xl p-5 mb-4 flex items-center justify-center shadow-inner">
-                    <div className="w-full h-full bg-gray-100 rounded-lg flex items-center justify-center">
-                      <svg className="w-56 h-56 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zM3 21h8v-8H3v8zm2-6h4v4H5v-4zM13 3v8h8V3h-8zm6 6h-4V5h4v4zM13 13h2v2h-2zM15 15h2v2h-2zM13 17h2v2h-2zM17 17h2v2h-2zM19 19h2v2h-2zM15 19h2v2h-2zM17 13h2v2h-2zM19 15h2v2h-2z"/>
-                      </svg>
-                    </div>
+                    {selectedTicket.qrImage ? (
+                      <img
+                        src={selectedTicket.qrImage.startsWith('data:') ? selectedTicket.qrImage : `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}${selectedTicket.qrImage}`}
+                        alt="Ticket QR Code"
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDR2MW02IDExaDJtLTYgMGgtMnY0bTAtMTF2M20wMGguMDFNMTIgMTJoNC4wMU0xNiAyMGg0TTQgMTJoNG0xMiAwaC4wMU01IDhoMmExIDEgMCAwMDEtMVY1YTEgMSAwIDAwLTEtMUg1YTEgMSAwIDAwLTEgMXYyYTEgMSAwIDAwMSAxem0xMiAwaDJhMSAxIDAgMDAxLTFWNWExIDEgMCAwMC0xLTFoLTJhMSAxIDAgMDAtMSAxdjJhMSAxIDAgMDAxIDF6TTUgMjBoMmExIDEgMCAwMDEtMXYtMmExIDEgMCAwMC0xLTFINWExIDEgMCAwMC0xIDF2MmExIDEgMCAwMDEgMXoiIGZpbGw9IiM5Q0EzQUYiLz4KPC9zdmc+';
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gray-100 rounded-lg flex items-center justify-center">
+                        <svg className="w-56 h-56 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zM3 21h8v-8H3v8zm2-6h4v4H5v-4zM13 3v8h8V3h-8zm6 6h-4V5h4v4zM13 13h2v2h-2zM15 15h2v2h-2zM13 17h2v2h-2zM17 17h2v2h-2zM19 19h2v2h-2zM15 19h2v2h-2zM17 13h2v2h-2zM19 15h2v2h-2z"/>
+                        </svg>
+                      </div>
+                    )}
                   </div>
                   <p className="text-sm text-gray-600 text-center font-medium">
                     Scan this QR code at the event entrance
@@ -391,11 +495,12 @@ export const MyTicketPage = () => {
                 </label>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 px-5 py-4 bg-white border-2 border-gray-300 rounded-lg font-mono font-semibold text-lg text-gray-900 text-center">
-                    {selectedTicket.qrCode}
+                    {selectedTicket.qrTicket || 'Ticket code unavailable'}
                   </div>
                   <button
                     onClick={handleCopyTicketCode}
-                    className="px-5 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2"
+                    disabled={!selectedTicket.qrTicket}
+                    className="px-5 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Copy ticket code"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -430,7 +535,7 @@ export const MyTicketPage = () => {
                   Close
                 </button>
                 <button
-                  onClick={() => console.log('Downloading QR ticket...')}
+                  onClick={handleDownloadQr}
                   className="flex-1 px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold text-base flex items-center justify-center gap-2"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -50,4 +50,38 @@ export const eventService = {
     });
     return response.data;
   },
+
+  // Get managed events with summary
+  getManagedEvents: async (params = {}) => {
+    const response = await api.get('/events/managed/summary', { params });
+    return response.data;
+  },
+
+  // Cancel event
+  cancelEvent: async (id) => {
+    const response = await api.delete(`/events/${id}`);
+    return response.data;
+  },
+
+  // Get event staff (organization members assigned to an event)
+  getEventStaff: async (eventId) => {
+    const response = await api.get(`/events/${eventId}/staff`);
+    return response.data;
+  },
+
+  // Assign staff to event
+  assignStaffToEvent: async (eventId, organizationId, userId, role) => {
+    const response = await api.post(`/events/${eventId}/staff`, {
+      organization_id: organizationId,
+      user_id: userId,
+      role: role
+    });
+    return response.data;
+  },
+
+  // Remove staff from event
+  removeStaffFromEvent: async (eventId, staffId) => {
+    const response = await api.delete(`/events/${eventId}/staff/${staffId}`);
+    return response.data;
+  },
 };

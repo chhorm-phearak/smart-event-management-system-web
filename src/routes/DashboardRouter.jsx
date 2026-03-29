@@ -2,7 +2,7 @@ import { Route, Navigate } from 'react-router-dom';
 import { DashboardLayout } from '@/layouts/DashboardLayout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { DashboardPage } from '@/pages/dashboard';
-import { AllEventsPage, ManageEventsPage, ManageEventStaffPage, CreateEventPage, EventDetailPage, RegisterEventPage } from '@/pages/events';
+import { AllEventsPage, ManageEventsPage, ManageEventStaffPage, CreateEventPage, EditEventPage, EventDetailPage, RegisterEventPage } from '@/pages/events';
 import { MyTicketPage, MyTicketEventDetailPage } from '@/pages/tickets';
 import { GroupPage, GroupDetailPage } from '@/pages/groups';
 import { ManageAttendeesPage, ManageAttendeesDetailPage } from '@/pages/attendees';
@@ -26,6 +26,7 @@ export const dashboardRoutes = [
     <Route path="all-events" element={<AllEventsPage />} />
     <Route path="create-event" element={<CreateEventPage />} />
     <Route path="events/:id" element={<EventDetailPage />} />
+    <Route path="events/:id/edit" element={<EditEventPage />} />
     <Route path="events/:id/register" element={<RegisterEventPage />} />
     <Route path="my-ticket" element={<MyTicketPage />} />
     <Route path="my-ticket/detail/:id" element={<MyTicketEventDetailPage />} />

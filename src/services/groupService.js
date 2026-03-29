@@ -3,10 +3,17 @@ import api from './api';
 export const groupService = {
   // Create a new group
   createGroup: async (data) => {
-    const response = await api.post('/groups', {
+    const requestData = {
       name: data.name,
       description: data.description,
-    });
+    };
+    
+    // Add image_url if it exists
+    if (data.image_url) {
+      requestData.image_url = data.image_url;
+    }
+    
+    const response = await api.post('/groups', requestData);
     return response.data;
   },
 

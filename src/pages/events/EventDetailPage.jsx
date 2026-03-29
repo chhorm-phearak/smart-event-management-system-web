@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { QRCodeSVG } from 'qrcode.react';
 import { eventService } from '@/services';
 
 const isValidDate = (date) => date instanceof Date && !Number.isNaN(date.getTime());
@@ -15,24 +14,62 @@ const formatTimeFromISO = (isoString) => {
 };
 
 const mapAgenda = (agenda) => {
-  if (!agenda || typeof agenda !== 'object') return [];
+  if (!agenda) return [];
+  if (Array.isArray(agenda) && agenda.length === 0) return [];
   const list = Array.isArray(agenda) ? agenda : [agenda];
-  return list.map((a, i) => ({
+  return list.filter(a => a && typeof a === 'object').map((a, i) => ({
     id: a.id ?? i,
     title: a.title ?? a.name ?? '—',
     description: a.description ?? '',
-    startTime: a.start_time ? formatTimeFromISO(a.start_time) : '',
-    endTime: a.end_time ? formatTimeFromISO(a.end_time) : '',
+    startTime: a.start_time ? formatTimeFromISO(a.start_time) : (a.startTime || ''),
+    endTime: a.end_time ? formatTimeFromISO(a.end_time) : (a.endTime || ''),
     speaker: a.speaker ?? '',
+    duration: a.duration ?? 0,
   }));
 };
 
-/** Normalize API response: single-event endpoint may return { data }, { data: { event } }, { event }, or the event object */
+/** Normalize API response: handles various response structures */
 const getEventPayload = (res) => {
   if (!res || typeof res !== 'object') return null;
-  const data = res.data ?? res;
-  if (data && typeof data === 'object' && data.event != null) return data.event;
-  return data ?? res.event ?? res;
+  
+  // If res already has id, title, agenda - it's the event object directly
+  if (res.id && res.title) {
+    return res;
+  }
+  
+  // Handle { event: { ... } }
+  if (res.event && typeof res.event === 'object') {
+    return res.event;
+  }
+  
+  // Handle { data: { ... } } wrapper (shouldn't happen since service returns response.data)
+  if (res.data && typeof res.data === 'object') {
+    if (res.data.event) return res.data.event;
+    if (res.data.id) return res.data;
+    return res.data;
+  }
+  
+  return res;
+};
+
+const formatDuration = (minutes) => {
+  if (!minutes) return '';
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (hours === 0) return `${mins}min`;
+  if (mins === 0) return `${hours}h`;
+  return `${hours}h ${mins}min`;
+};
+
+const mapStaff = (staff) => {
+  if (!staff || !Array.isArray(staff)) return [];
+  return staff.map((s) => ({
+    id: s.id,
+    firstName: s.first_name ?? s.firstName ?? '',
+    lastName: s.last_name ?? s.lastName ?? '',
+    email: s.email ?? '',
+    role: s.role ?? 'Staff',
+  }));
 };
 
 const mapRawToEvent = (raw) => {
@@ -52,18 +89,28 @@ const mapRawToEvent = (raw) => {
     eventDate: raw.start_time ?? raw.startTime,
     startTime: (raw.start_time ?? raw.startTime) ? formatTimeFromISO(raw.start_time ?? raw.startTime) : '',
     endTime: (raw.end_time ?? raw.endTime) ? formatTimeFromISO(raw.end_time ?? raw.endTime) : '',
+    duration: raw.duration ?? 0,
+    durationFormatted: formatDuration(raw.duration),
     location: raw.location ?? '—',
     fullAddress: raw.full_address ?? raw.fullAddress ?? raw.location ?? '—',
     capacity: raw.capacity ?? 0,
     registered: raw.registered ?? raw.attendees_count ?? 0,
     price: raw.price ?? 0,
     organizer: raw.organization_name ?? raw.organizationName ?? raw.organizer ?? '—',
+    organizationId: raw.organization_id ?? raw.organizationId ?? '',
+    status: raw.status ?? 'DRAFT',
+    isPublic: raw.is_public ?? raw.isPublic ?? true,
     image: imageUrl,
-    qrcode: raw.qrcode ?? raw.qr_code ?? '',
+    images: Array.isArray(images) ? images.map(img => img.image_url ?? img.url ?? img) : [],
+    qrcode: (raw.qr_image_url || raw.qrcode) ?? raw.qr_code ?? '',
+    qrTicket: raw.qr_ticket ?? raw.qrTicket ?? raw.ticket_code ?? raw.code ?? '',
     registrationRequired: raw.registration_required ?? true,
     qrCodeAvailable: raw.qr_code_available ?? true,
     bringValidId: raw.bring_valid_id ?? true,
     agendas: mapAgenda(raw.agenda ?? raw.agendas),
+    staff: mapStaff(raw.staff),
+    groupName: raw.group_name ?? raw.groupName ?? null,
+    createdAt: raw.created_at ?? raw.createdAt ?? '',
   };
 };
 
@@ -74,34 +121,60 @@ export const EventDetailPage = () => {
   const { id } = useParams();
   const fromGroup = location.state?.fromGroup;
   const [registeredQrCode, setRegisteredQrCode] = useState('');
+  const [registeredTicketCode, setRegisteredTicketCode] = useState('');
   const [showQrModal, setShowQrModal] = useState(false);
 
-  const getCachedEventById = (eventId) => {
+  // Try to get cached event from the events list (which includes agenda and staff)
+  const getCachedEventFromList = (eventId) => {
     if (!eventId) return null;
-    const cachedEventQueries = queryClient.getQueriesData({ queryKey: ['events'] });
-    for (const [, cachedData] of cachedEventQueries) {
-      const list = Array.isArray(cachedData)
-        ? cachedData
-        : cachedData?.events ?? cachedData?.data?.events ?? [];
-      if (!Array.isArray(list)) continue;
-      const found = list.find((item) => item?.id === eventId);
-      if (found) return found;
+    // Get ALL cached queries (not just 'events' key)
+    const allQueries = queryClient.getQueryCache().getAll();
+    for (const query of allQueries) {
+      const queryKey = query.queryKey;
+      // Check if this is an events-related query
+      if (Array.isArray(queryKey) && queryKey[0] === 'events') {
+        const cachedData = query.state.data;
+        if (!cachedData) continue;
+        
+        const list = Array.isArray(cachedData)
+          ? cachedData
+          : cachedData?.events ?? cachedData?.data?.events ?? [];
+        if (!Array.isArray(list)) continue;
+        
+        const found = list.find((item) => item?.id === eventId);
+        if (found) {
+          console.log('[EventDetail] Found cached event in query:', queryKey);
+          return found;
+        }
+      }
     }
     return null;
   };
-  const cachedRawEvent = getCachedEventById(id);
-  const cachedMappedEvent = mapRawToEvent(cachedRawEvent);
 
-  const { data: event, isLoading: loading, error } = useQuery({
-    queryKey: ['event', id],
+  const { data: event, isLoading: loading, error, isFetching } = useQuery({
+    queryKey: ['event', 'detail', id],
     queryFn: async () => {
-      const res = await eventService.getEventById(id);
-      const raw = getEventPayload(res);
-      const mapped = mapRawToEvent(raw);
-      if (!mapped?.id) return null;
+      // First try to get from cached events list (has agenda & staff)
+      const cachedEvent = getCachedEventFromList(id);
+      
+      // If we have cached data with agenda/staff, use it directly
+      if (cachedEvent?.id) {
+        console.log('[EventDetail] Using cached event with agenda/staff');
+        const mapped = mapRawToEvent(cachedEvent);
+        return mapped;
+      }
+      
+      // Otherwise fetch from API
+      const response = await eventService.getEventById(id);
+      const apiEvent = response?.data?.event || response?.data || response?.event || response;
+      
+      if (!apiEvent?.id) return null;
+      
+      const mapped = mapRawToEvent(apiEvent);
       return mapped;
     },
-    initialData: cachedMappedEvent ?? undefined,
+    staleTime: 0,
+    refetchOnMount: true,
     enabled: !!id,
   });
 
@@ -117,13 +190,21 @@ export const EventDetailPage = () => {
   const registerMutation = useMutation({
     mutationFn: (eventId) => eventService.registerForEvent(eventId),
     onSuccess: (response) => {
-      const qr =
-        response?.data?.qrcode ??
-        response?.data?.qr_code ??
+      const payload = response?.data ?? response ?? {};
+      const qrImage =
+        payload?.qrcode ??
+        payload?.qr_code ??
         response?.qrcode ??
         response?.qr_code ??
         '';
-      if (qr) setRegisteredQrCode(qr);
+      const qrTicket =
+        payload?.qr_ticket ??
+        response?.qr_ticket ??
+        payload?.qrTicket ??
+        response?.qrTicket ??
+        '';
+      if (qrImage) setRegisteredQrCode(qrImage);
+      if (qrTicket) setRegisteredTicketCode(qrTicket);
       queryClient.invalidateQueries({ queryKey: ['event', id] });
       queryClient.invalidateQueries({ queryKey: ['events'] });
       toast.success('Registered successfully.');
@@ -137,12 +218,23 @@ export const EventDetailPage = () => {
   const eventFromAllEvents = allEvents.find((item) => item?.id === id);
   const eventQrCode = (
     registeredQrCode ||
-    eventFromAllEvents?.qrcode ||
+    (eventFromAllEvents?.qr_image_url || eventFromAllEvents?.qrcode) ||
     eventFromAllEvents?.qr_code ||
-    event?.qrcode ||
+    (event?.qr_image_url || event?.qrcode) ||
     ''
   ).trim();
-  const isRegistered = eventQrCode !== '';
+  const eventTicketCode = (
+    registeredTicketCode ||
+    eventFromAllEvents?.qr_ticket ||
+    eventFromAllEvents?.ticket_code ||
+    eventFromAllEvents?.code ||
+    event?.qrTicket ||
+    event?.qr_ticket ||
+    ''
+  ).trim();
+  const hasQrImage = Boolean(eventQrCode);
+  const hasTicketCode = Boolean(eventTicketCode);
+  const isRegistered = hasQrImage || hasTicketCode;
 
   const formatDate = (dateString) => {
     if (!dateString) return '—';
@@ -188,21 +280,89 @@ export const EventDetailPage = () => {
     setShowQrModal(false);
   };
 
-  const handleDownloadQr = () => {
-    // Download functionality would go here
-    console.log('Downloading QR ticket...');
+  const handleDownloadQr = async () => {
+    if (!hasQrImage) {
+      toast.error('No QR code available to download.');
+      return;
+    }
+
+    try {
+      // Set filename based on event title and current date
+      const sanitizedName = event.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const filename = `${sanitizedName}_qr_${timestamp}.png`;
+      
+      if (eventQrCode.startsWith('data:')) {
+        // Handle base64 data
+        const link = document.createElement('a');
+        link.href = eventQrCode;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        // Handle URL - use canvas to convert image to blob (bypasses CORS for download)
+        const qrUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}${eventQrCode}`;
+        
+        // Create an image element
+        const img = new Image();
+        img.crossOrigin = 'anonymous'; // Try to request with CORS
+        
+        // Wait for image to load
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = () => {
+            // If CORS fails, fallback to simple download
+            const link = document.createElement('a');
+            link.href = qrUrl;
+            link.download = filename;
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            resolve();
+          };
+          img.src = qrUrl;
+        });
+        
+        // If image loaded successfully, convert to blob via canvas
+        if (img.complete && img.naturalHeight !== 0) {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          
+          canvas.toBlob((blob) => {
+            const blobUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => window.URL.revokeObjectURL(blobUrl), 100);
+          }, 'image/png');
+        }
+      }
+      
+      toast.success('QR code downloaded successfully!');
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('Failed to download QR code. Please try again.');
+    }
   };
 
   const handleCopyTicketCode = async () => {
-    if (!eventQrCode) {
-      toast.error('No QR code data available to copy.');
+    if (!eventTicketCode) {
+      toast.error('No ticket code available to copy.');
       return;
     }
     try {
-      await navigator.clipboard.writeText(eventQrCode);
-      toast.success('QR code copied.');
+      await navigator.clipboard.writeText(eventTicketCode);
+      toast.success('Ticket code copied.');
     } catch {
-      toast.error('Failed to copy QR code.');
+      toast.error('Failed to copy ticket code.');
     }
   };
 
@@ -241,187 +401,222 @@ export const EventDetailPage = () => {
   }
 
   return (
-    <div className="w-full">
-      {/* Back Button */}
-      <button
-        onClick={handleBack}
-        className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors mb-6"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-        <span className="font-medium">{fromGroup ? 'Back to Group' : 'Back to Events'}</span>
-      </button>
-
-      {/* Event Image */}
-      <div className="mb-6">
-        <img 
-          src={event.image} 
-          alt={event.title}
-          className="w-full h-64 object-cover rounded-lg shadow-sm"
-        />
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={handleBack}
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            <span className="font-medium">{fromGroup ? 'Back to Group' : 'All Events'}</span>
+          </button>
+          
+          <div className="flex items-center gap-3">
+            <span className={`px-3 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-full ${
+              event.status === 'PUBLISHED' ? 'bg-green-100 text-green-700' :
+              event.status === 'DRAFT' ? 'bg-yellow-100 text-yellow-700' :
+              event.status === 'CANCELLED' ? 'bg-red-100 text-red-700' :
+              'bg-gray-100 text-gray-600'
+            }`}>
+              {event.status}
+            </span>
+            {isRegistered && (
+              <span className="px-3 py-1.5 bg-blue-100 text-blue-700 text-xs font-semibold uppercase tracking-wider rounded-full">
+                ✓ Registered
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Content Area */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Purple Banner Background */}
-          <div className="bg-purple-100 rounded-lg p-6">
-            {/* Category Tag */}
-            <div className="mb-4">
-              <span className="inline-block px-4 py-1.5 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                {event.category}
+      {/* Hero Section - Split Layout */}
+      <div className="lg:grid lg:grid-cols-2">
+        {/* Left - Image */}
+        <div className="relative h-[40vh] lg:h-auto lg:sticky lg:top-0">
+          <img 
+            src={event.image} 
+            alt={event.title}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent lg:bg-gradient-to-r lg:from-transparent lg:to-white/20"></div>
+          
+          {/* Price Badge */}
+          <div className="absolute bottom-6 left-6 lg:bottom-auto lg:top-24 lg:left-6">
+            <div className="bg-white text-gray-900 px-5 py-2 rounded-full font-bold text-xl shadow-lg">
+              {event.price === 0 ? 'FREE' : `$${event.price}`}
+            </div>
+          </div>
+        </div>
+
+        {/* Right - Content */}
+        <div className="relative bg-white px-6 lg:px-12 py-10 lg:py-24 lg:overflow-y-auto">
+          {/* Category */}
+          <div className="flex items-center gap-3 mb-6">
+            <span className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-full">
+              {event.category}
+            </span>
+            {event.isPublic && (
+              <span className="px-4 py-2 bg-gray-100 text-gray-600 text-sm font-medium rounded-full">
+                Public Event
               </span>
-            </div>
-
-            {/* Event Title */}
-            <h1 className="text-3xl font-bold text-gray-900 mb-3">{event.title}</h1>
-
-            {/* Event Description */}
-            <p className="text-gray-600 leading-relaxed">
-              {event.shortDescription || event.description}
-            </p>
+            )}
           </div>
 
-          {/* Date & Time and Location Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Date & Time Card */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+          {/* Title */}
+          <h1 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-4 leading-tight">
+            {event.title}
+          </h1>
+
+          {/* Short Description */}
+          {event.shortDescription && (
+            <p className="text-lg text-gray-500 mb-8 leading-relaxed">{event.shortDescription}</p>
+          )}
+
+          {/* Event Meta Grid */}
+          <div className="grid grid-cols-2 gap-4 mb-10">
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
                   <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                 </div>
-                <h3 className="text-base font-semibold text-gray-900">Date & Time</h3>
+                <span className="text-gray-500 text-sm font-medium">Date</span>
               </div>
-              <div className="space-y-1">
-                <p className="text-gray-900 font-bold text-lg">{formatDate(event.eventDate)}</p>
-                <p className="text-gray-700 font-semibold text-base">
-                  {formatTimeRange(event.startTime, event.endTime)}
-                </p>
-              </div>
+              <p className="text-gray-900 font-semibold">{formatDate(event.eventDate)}</p>
             </div>
 
-            {/* Location Card */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <h3 className="text-base font-semibold text-gray-900">Location</h3>
+                <span className="text-gray-500 text-sm font-medium">Time</span>
               </div>
-              <div className="space-y-1">
-                <p className="text-gray-900 font-bold text-lg">{event.location}</p>
-                <p className="text-gray-700 font-semibold text-base">{event.fullAddress}</p>
+              <p className="text-gray-900 font-semibold">{formatTimeRange(event.startTime, event.endTime)}</p>
+            </div>
+
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <span className="text-gray-500 text-sm font-medium">Duration</span>
               </div>
+              <p className="text-gray-900 font-semibold">{event.durationFormatted || `${event.duration} min`}</p>
+            </div>
+
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </div>
+                <span className="text-gray-500 text-sm font-medium">Location</span>
+              </div>
+              <p className="text-gray-900 font-semibold truncate">{event.location}</p>
             </div>
           </div>
 
-          {/* Event Information */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Event Information</h2>
+          {/* Capacity Bar */}
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 mb-10">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-gray-600 font-medium">Attendance</span>
+              <span className="text-gray-900 font-semibold">{event.registered} / {event.capacity} spots</span>
+            </div>
+            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-blue-600 rounded-full transition-all duration-700"
+                style={{ width: `${attendancePercentage}%` }}
+              ></div>
+            </div>
+            <p className="text-gray-500 text-sm mt-2">{attendancePercentage}% filled</p>
+          </div>
+
+          {/* CTA Button */}
+          {!isRegistered ? (
+            <button
+              onClick={handleRegister}
+              disabled={registerMutation.isPending}
+              className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white text-lg font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {registerMutation.isPending ? 'Processing...' : 'Register Now'}
+            </button>
+          ) : (
+            <button
+              onClick={handleShowQrTicket}
+              className="w-full py-4 bg-green-600 hover:bg-green-700 text-white text-lg font-semibold rounded-xl transition-colors"
+            >
+              View My Ticket
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Content Sections */}
+      <div className="bg-white border-t border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 lg:px-12 py-16">
+          {/* About Section */}
+          <section className="mb-16">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">About This Event</h2>
+            <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+              <p className="text-gray-600 leading-relaxed whitespace-pre-line">{event.description}</p>
+            </div>
+          </section>
+
+          {/* Schedule Section */}
+          <section className="mb-16">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Event Schedule</h2>
+              {event.agendas && event.agendas.length > 0 && (
+                <span className="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-semibold rounded-full">
+                  {event.agendas.length} {event.agendas.length === 1 ? 'Session' : 'Sessions'}
+                </span>
+              )}
+            </div>
             
-            <div className="space-y-5">
-              {/* Organizer */}
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center shrink-0">
-                  <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                    />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 mb-0.5">Organized by</p>
-                  <p className="text-base font-semibold text-gray-900">{event.organizer}</p>
-                </div>
-              </div>
-
-              {/* Attendance */}
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center shrink-0">
-                  <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                    />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm text-gray-500 mb-1">Attendance</p>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xl font-bold text-gray-900">{attendancePercentage}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${attendancePercentage}%` }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* About This Event */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">About This Event</h2>
-            <p className="text-gray-600 leading-relaxed">{event.description}</p>
-          </div>
-
-          {/* Event Agenda */}
-          {event.agendas && event.agendas.length > 0 && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Event Agenda</h2>
+            {event.agendas && event.agendas.length > 0 ? (
               <div className="space-y-4">
                 {event.agendas.map((agenda, index) => (
-                  <div key={agenda.id || index} className="border-l-4 border-blue-500 pl-4 py-2">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-medium text-gray-500">
-                            {formatTimeRange(agenda.startTime, agenda.endTime)}
+                  <div 
+                    key={agenda.id || index}
+                    className="bg-white border border-gray-200 hover:border-blue-300 rounded-xl p-6 transition-colors"
+                  >
+                    <div className="flex items-start gap-5">
+                      <div className="flex-shrink-0 w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">
+                        {String(index + 1).padStart(2, '0')}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-3 mb-2">
+                          <span className="px-3 py-1 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg">
+                            {agenda.startTime || '—'} - {agenda.endTime || '—'}
                           </span>
+                          {agenda.duration > 0 && (
+                            <span className="px-3 py-1 bg-gray-50 text-gray-500 text-xs font-medium rounded-lg">
+                              {agenda.duration} min
+                            </span>
+                          )}
                         </div>
-                        <h3 className="text-base font-semibold text-gray-900 mb-1">{agenda.title}</h3>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-1">{agenda.title}</h3>
                         {agenda.description && (
-                          <p className="text-sm text-gray-600 mb-2">{agenda.description}</p>
+                          <p className="text-gray-500">{agenda.description}</p>
                         )}
                         {agenda.speaker && (
-                          <div className="flex items-center gap-2">
-                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                              />
-                            </svg>
-                            <span className="text-sm text-gray-600">Speaker: {agenda.speaker}</span>
+                          <div className="flex items-center gap-3 mt-4 pt-4 border-t border-gray-100">
+                            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold">
+                              {agenda.speaker.charAt(0)}
+                            </div>
+                            <span className="text-gray-600 font-medium">{agenda.speaker}</span>
                           </div>
                         )}
                       </div>
@@ -429,101 +624,143 @@ export const EventDetailPage = () => {
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-        </div>
-
-        {/* Right Sidebar */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 sticky top-6">
-            {/* Pricing Section */}
-            <div className="bg-blue-600 rounded-lg p-6 mb-4">
-              <div className="text-white text-center">
-                <div className="text-4xl font-bold">
-                  {event.price === 0 ? 'Free' : `$${event.price}`}
-                </div>
-                <div className="text-sm text-blue-100 mt-2">per ticket</div>
-              </div>
-            </div>
-
-            {/* Show QR Ticket Button or Register Button */}
-            {!isRegistered ? (
-              <button
-                onClick={handleRegister}
-                disabled={registerMutation.isPending}
-                className="w-full bg-blue-600 text-white font-medium py-2.5 rounded-lg hover:bg-blue-700 transition-colors text-sm mb-4"
-              >
-                {registerMutation.isPending ? 'Registering...' : 'Register for Event'}
-              </button>
             ) : (
-              <button
-                onClick={handleShowQrTicket}
-                className="w-full bg-blue-600 text-white font-medium py-2.5 rounded-lg hover:bg-blue-700 transition-colors text-sm mb-4"
-              >
-                Show Qr Ticket
-              </button>
-            )}
-
-            {/* Registered Status - Only show when registered */}
-            {isRegistered && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-                <div className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-green-700 font-medium">Registered!</span>
-                </div>
+              <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl p-12 text-center">
+                <svg className="w-12 h-12 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <p className="text-gray-400 font-medium">No schedule available yet</p>
               </div>
             )}
+          </section>
 
-            {/* Requirements Checklist */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-gray-900 mb-3">Requirements:</h3>
-              {event.registrationRequired && (
-                <div className="flex items-center gap-2 text-sm text-gray-700">
-                  <svg className="w-4 h-4 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>Registration is required</span>
+          {/* Team Section */}
+          <section className="mb-16">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Event Team</h2>
+            
+            {event.staff && event.staff.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {event.staff.map((member) => (
+                  <div 
+                    key={member.id}
+                    className="bg-white border border-gray-200 hover:border-blue-300 rounded-xl p-5 transition-colors"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-lg">
+                        {member.firstName?.charAt(0) || member.lastName?.charAt(0) || 'S'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-gray-900 font-semibold truncate">
+                          {member.firstName} {member.lastName}
+                        </p>
+                        <span className="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded mt-1">
+                          {member.role}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl p-12 text-center">
+                <svg className="w-12 h-12 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <p className="text-gray-400 font-medium">No team members assigned</p>
+              </div>
+            )}
+          </section>
+
+          {/* Info Cards Grid */}
+          <section>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Organizer */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
+                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-4">Hosted By</h3>
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-lg">
+                    {event.organizer?.charAt(0) || 'O'}
+                  </div>
+                  <div>
+                    <p className="text-gray-900 font-semibold">{event.organizer}</p>
+                    <p className="text-gray-500 text-sm">Organization</p>
+                  </div>
                 </div>
-              )}
-              {event.qrCodeAvailable && (
-                <div className="flex items-center gap-2 text-sm text-gray-700">
-                  <svg className="w-4 h-4 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>QR code available after registration</span>
+                {event.groupName && (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <p className="text-gray-500 text-sm">Group: <span className="text-gray-900 font-medium">{event.groupName}</span></p>
+                  </div>
+                )}
+              </div>
+
+              {/* Location */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
+                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-4">Venue</h3>
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-gray-900 font-semibold">{event.location}</p>
+                    <p className="text-gray-500 text-sm mt-1">{event.fullAddress}</p>
+                  </div>
                 </div>
-              )}
-              {event.bringValidId && (
-                <div className="flex items-center gap-2 text-sm text-gray-700">
-                  <svg className="w-4 h-4 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>Bring valid ID to the event</span>
-                </div>
-              )}
+              </div>
+
+              {/* Requirements */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
+                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-4">Requirements</h3>
+                <ul className="space-y-3">
+                  {event.registrationRequired && (
+                    <li className="flex items-center gap-3 text-gray-600">
+                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      <span className="text-sm">Registration required</span>
+                    </li>
+                  )}
+                  {event.qrCodeAvailable && (
+                    <li className="flex items-center gap-3 text-gray-600">
+                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      <span className="text-sm">QR code ticket</span>
+                    </li>
+                  )}
+                  {event.bringValidId && (
+                    <li className="flex items-center gap-3 text-gray-600">
+                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      <span className="text-sm">Bring valid ID</span>
+                    </li>
+                  )}
+                </ul>
+              </div>
             </div>
-          </div>
+          </section>
         </div>
       </div>
 
-      {/* QR Ticket Modal */}
+      {/* QR Ticket Modal - Light Theme */}
       {showQrModal && event && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+            <div className="bg-blue-600 p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
                     <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
                     </svg>
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold">Your Ticket</h2>
-                    <p className="text-blue-100 text-sm">Present this QR code at the event</p>
+                    <h2 className="text-xl font-bold text-white">Your Ticket</h2>
+                    <p className="text-blue-100 text-sm">Present at entrance</p>
                   </div>
                 </div>
                 <button
@@ -539,106 +776,106 @@ export const EventDetailPage = () => {
 
             {/* Ticket Content */}
             <div className="p-6">
-              {/* Event Info Card */}
-              <div className="bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl p-5 mb-6 border border-gray-200">
-                <h3 className="text-xl font-bold text-gray-900 mb-2">{event.title}</h3>
-                <div className="space-y-2 text-sm text-gray-700">
-                  <div className="flex items-center gap-2">
-                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {/* Event Info */}
+              <div className="bg-gray-50 rounded-xl p-5 mb-6 border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">{event.title}</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-3 text-gray-600">
+                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    <span className="font-medium">{formatDate(event.eventDate)}</span>
+                    <span>{formatDate(event.eventDate)}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="flex items-center gap-3 text-gray-600">
+                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <span className="font-medium">{formatTimeRange(event.startTime, event.endTime)}</span>
+                    <span>{formatTimeRange(event.startTime, event.endTime)}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="flex items-center gap-3 text-gray-600">
+                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
-                    <span className="font-medium">{event.location}</span>
+                    <span>{event.location}</span>
                   </div>
                 </div>
               </div>
 
-              {/* QR Code Section */}
+              {/* QR Code */}
               <div className="bg-white border-2 border-gray-200 rounded-xl p-6 mb-6">
                 <div className="flex flex-col items-center">
-                  <div className="w-64 h-64 bg-white border-4 border-blue-100 rounded-xl p-4 mb-4 flex items-center justify-center shadow-inner">
-                    {isRegistered ? (
-                      <QRCodeSVG value={eventQrCode} size={220} level="M" />
+                  <div className="w-48 h-48 bg-white rounded-lg flex items-center justify-center">
+                    {hasQrImage ? (
+                      <img
+                        src={eventQrCode.startsWith('data:') ? eventQrCode : `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}${eventQrCode}`}
+                        alt="Event QR Code"
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDR2MW02IDExaDJtLTYgMGgtMnY0bTAtMTF2M20wMGguMDFNMTIgMTJoNC4wMU0xNiAyMGg0TTQgMTJoNG0xMiAwaC4wMU01IDhoMmExIDEgMCAwMDEtMVY1YTEgMSAwIDAwLTEtMUg1YTEgMSAwIDAwLTEgMXYyYTEgMSAwIDAwMSAxem0xMiAwaDJhMSAxIDAgMDAxLTFWNWExIDEgMCAwMC0xLTFoLTJhMSAxIDAgMDAtMSAxdjJhMSAxIDAgMDAxIDF6TTUgMjBoMmExIDEgMCAwMTEtMXYtMmExIDEgMCAwMC0xLTFINWExIDEgMCAwMC0xIDF2MmExIDEgMCAwMTEgMXoiIGZpbGw9IiM5Q0EzQUYiLz4KPC9zdmc+';
+                        }}
+                      />
                     ) : (
-                      <div className="w-full h-full bg-gray-100 rounded-lg flex items-center justify-center text-xs text-gray-500 text-center px-4">
-                        Register first to generate QR code
+                      <div className="w-full h-full bg-gray-100 rounded-lg flex items-center justify-center text-sm text-gray-500 text-center px-4">
+                        {isRegistered ? 'QR unavailable' : 'Register first'}
                       </div>
                     )}
                   </div>
-                  <p className="text-xs text-gray-500 text-center mb-4">
-                    Scan this QR code at the event entrance
-                  </p>
+                  <p className="text-xs text-gray-500 mt-3">Scan at entrance</p>
                 </div>
               </div>
 
-              {/* QR Data Section */}
-              <div className="bg-gray-50 rounded-xl p-4 mb-6">
-                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
-                  QR Code Data
+              {/* Ticket Code */}
+              <div className="bg-gray-50 rounded-xl p-4 mb-6 border border-gray-200">
+                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
+                  Ticket Code
                 </label>
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 px-4 py-3 bg-white border-2 border-gray-300 rounded-lg font-mono font-semibold text-gray-900 text-center">
-                    {isRegistered ? eventQrCode : 'Not registered yet'}
+                  <div className="flex-1 px-4 py-3 bg-white border border-gray-300 rounded-lg font-mono font-semibold text-gray-900 text-center text-sm">
+                    {hasTicketCode ? eventTicketCode : 'N/A'}
                   </div>
                   <button
                     onClick={handleCopyTicketCode}
-                    disabled={!isRegistered}
-                    className="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2"
-                    title="Copy QR code data"
+                    disabled={!hasTicketCode}
+                    className="px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors disabled:opacity-50"
+                    title="Copy"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                     </svg>
-                    <span className="text-sm font-medium">Copy</span>
                   </button>
                 </div>
               </div>
 
-              {/* Important Notice */}
+              {/* Notice */}
               {event.bringValidId && (
-                <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4 mb-6">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
                   <div className="flex items-start gap-3">
                     <svg className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <div>
-                      <p className="text-sm font-semibold text-yellow-900 mb-1">Important</p>
-                      <p className="text-xs text-yellow-800">
-                        Please arrive 15 minutes early. Bring a valid ID for verification.
-                      </p>
-                    </div>
+                    <p className="text-sm text-yellow-800">
+                      Arrive 15 min early with valid ID
+                    </p>
                   </div>
                 </div>
               )}
 
-              {/* Modal Actions */}
+              {/* Actions */}
               <div className="flex gap-3">
                 <button
                   onClick={handleCloseQrModal}
-                  className="flex-1 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold"
+                  className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-semibold"
                 >
                   Close
                 </button>
                 <button
                   onClick={handleDownloadQr}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-semibold flex items-center justify-center gap-2"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
-                  Download Ticket
+                  Download
                 </button>
               </div>
             </div>

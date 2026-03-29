@@ -34,13 +34,25 @@ export const GroupDetailPage = () => {
       const groupData = response?.data?.group || response?.data?.group || response?.group || {};
       
       // Normalize data for UI consumption
+      // Handle image URL - if it's a relative path, add base URL
+      let imageUrl = 'https://images.unsplash.com/photo-1526379095085-dccba630e2f6?w=1200&h=400&fit=crop';
+      if (groupData.image_url) {
+        imageUrl = groupData.image_url;
+        // If it's a relative path, add base URL
+        if (imageUrl.startsWith('/uploads/')) {
+          imageUrl = `${window.location.origin}${imageUrl}`;
+        }
+      } else if (groupData.image) {
+        imageUrl = groupData.image;
+      }
+      
       const normalizedGroup = {
         id: groupData.id || id,
         name: groupData.name || 'Unknown Group',
         description: groupData.description || 'No description available',
         members: groupData.member_count || 0,
         events: groupData.event_count || 0,
-        image: groupData.image || 'https://images.unsplash.com/photo-1526379095085-dccba630e2f6?w=1200&h=400&fit=crop',
+        image: imageUrl,
         createdDate: groupData.created_at || new Date().toISOString(),
         isJoined: true, // You might want to determine this from API
       };

@@ -1,38 +1,119 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Outlet, Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { useSocket } from '@/hooks/useSocket';
+import { notificationService } from '@/services/notificationService';
+import toast from 'react-hot-toast';
 
 export const DashboardLayout = () => {
   const [isNotificationDropdownOpen, setIsNotificationDropdownOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [loadingNotifications, setLoadingNotifications] = useState(true);
   const { logout, user } = useAuth();
   const navigate = useNavigate();
+  const { onNotification } = useSocket();
 
-  const notifications = [
-    {
-      id: 1,
-      title: 'New ticket registered',
-      description: 'A new attendee just registered for your event.',
-      time: '2 min ago',
+  // Format timestamp to relative time
+  const formatTime = (timestamp) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now - date) / 1000);
+    
+    if (diffInSeconds < 60) return 'Just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} min ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hour ago`;
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
+    return 'Last week';
+  };
+
+  // Fetch notifications from API
+  const fetchNotifications = useCallback(async () => {
+    try {
+      setLoadingNotifications(true);
+      const response = await notificationService.getNotifications(1, 5);
+      const transformedNotifications = (response.data || []).map(n => ({
+        id: n.id,
+        title: n.title,
+        description: n.message,
+        time: formatTime(n.created_at),
+        unread: !n.is_read,
+        type: n.type,
+        eventId: n.event_id,
+        groupId: n.group_id,
+      }));
+      setNotifications(transformedNotifications);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    } finally {
+      setLoadingNotifications(false);
+    }
+  }, []);
+
+  // Handle real-time notification
+  const handleNewNotification = useCallback((notification) => {
+    const newNotif = {
+      id: notification.id,
+      title: notification.title,
+      description: notification.message,
+      time: 'Just now',
       unread: true,
-    },
-    {
-      id: 2,
-      title: 'Event starts tomorrow',
-      description: 'Reminder: NTTI Event starts at 11:00 PM tomorrow.',
-      time: '1 hour ago',
-      unread: true,
-    },
-    {
-      id: 3,
-      title: 'Organization approved',
-      description: 'Your organization profile has been approved.',
-      time: 'Yesterday',
-      unread: false,
-    },
-  ];
+      type: notification.type,
+      eventId: notification.event_id,
+      groupId: notification.group_id,
+    };
+    
+    setNotifications(prev => [newNotif, ...prev.slice(0, 4)]);
+    
+    toast(notification.title, {
+      icon: '🔔',
+      duration: 4000,
+    });
+  }, []);
+
+  // Fetch notifications on mount
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  // Set up real-time notification listener
+  useEffect(() => {
+    const cleanup = onNotification(handleNewNotification);
+    return () => cleanup();
+  }, [onNotification, handleNewNotification]);
 
   const unreadCount = notifications.filter((item) => item.unread).length;
+
+  // Mark all notifications as read
+  const handleMarkAllAsRead = async () => {
+    try {
+      await notificationService.markAllAsRead();
+      setNotifications(notifications.map(n => ({ ...n, unread: false })));
+      toast.success('All notifications marked as read');
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+      toast.error('Failed to mark all as read');
+    }
+  };
+
+  // Handle notification click - navigate to appropriate page
+  const handleNotificationClick = (item) => {
+    setIsNotificationDropdownOpen(false);
+    const type = item.type?.toLowerCase();
+    
+    if (type === 'group_invite' && item.groupId) {
+      navigate(`/groups/${item.groupId}`);
+    } else if ((type === 'invitation' || type === 'staff_invite') && item.eventId) {
+      navigate(`/events/${item.eventId}`);
+    } else if (item.eventId) {
+      navigate(`/events/${item.eventId}`);
+    } else if (item.groupId) {
+      navigate(`/groups/${item.groupId}`);
+    } else {
+      navigate('/notifications');
+    }
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -212,16 +293,31 @@ export const DashboardLayout = () => {
                       <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
                         <div className="flex items-center justify-between">
                           <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
-                          {unreadCount > 0 && (
-                            <span className="text-xs font-medium text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
-                              {unreadCount} new
-                            </span>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {unreadCount > 0 && (
+                              <>
+                                <span className="text-xs font-medium text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
+                                  {unreadCount} new
+                                </span>
+                                <button
+                                  onClick={handleMarkAllAsRead}
+                                  className="text-xs font-medium text-gray-600 hover:text-blue-600 transition-colors"
+                                >
+                                  Mark all read
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
 
                       <div className="max-h-[30rem] overflow-y-auto">
-                        {notifications.length === 0 ? (
+                        {loadingNotifications ? (
+                          <div className="px-4 py-8 text-center">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+                            <p className="text-sm text-gray-500 mt-2">Loading...</p>
+                          </div>
+                        ) : notifications.length === 0 ? (
                           <div className="px-4 py-8 text-center text-sm text-gray-500">
                             No notifications yet
                           </div>
@@ -229,7 +325,7 @@ export const DashboardLayout = () => {
                           notifications.map((item) => (
                             <button
                               key={item.id}
-                              onClick={() => setIsNotificationDropdownOpen(false)}
+                              onClick={() => handleNotificationClick(item)}
                               className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
                             >
                               <div className="flex items-start gap-3">

@@ -25,91 +25,49 @@ export const ManageEventsPage = () => {
   const fetchEvents = async () => {
     try {
       setLoading(true);
-      // Mock data for demonstration - replace with actual API call
-      // const data = await eventService.getMyEvents({ filter });
+      const response = await eventService.getManagedEvents();
+      const apiEvents = response?.data?.events || [];
       
-      const mockEvents = [
-        {
-          id: 1,
-          title: 'Tech Conference 2025',
-          registeredDate: '2/10/2024',
-          location: 'Convention Center, New York',
-          totalCapacity: 500,
-          registered: 280,
-          status: 'upcoming',
-          image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400&h=200&fit=crop'
-        },
-        {
-          id: 2,
-          title: 'AI & Machine Learning Summit',
-          registeredDate: '3/15/2024',
-          location: 'Tech Hub, San Francisco',
-          totalCapacity: 300,
-          registered: 245,
-          status: 'upcoming',
-          image: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=400&h=200&fit=crop'
-        },
-        {
-          id: 3,
-          title: 'Web Development Workshop',
-          registeredDate: '4/20/2024',
-          location: 'Online',
-          totalCapacity: 200,
-          registered: 150,
-          status: 'past',
-          image: 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=400&h=200&fit=crop'
-        },
-        {
-          id: 4,
-          title: 'Startup Networking Night',
-          registeredDate: '5/10/2024',
-          location: 'Business Center, Boston',
-          totalCapacity: 100,
-          registered: 0,
-          status: 'cancelled',
-          image: 'https://images.unsplash.com/photo-1515189828136-35d2523c5b06?w=400&h=200&fit=crop'
-        },
-        {
-          id: 5,
-          title: 'Data Science Bootcamp',
-          registeredDate: '6/1/2024',
-          location: 'University Campus, Seattle',
-          totalCapacity: 400,
-          registered: 320,
-          status: 'upcoming',
-          image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400&h=200&fit=crop'
-        },
-        {
-          id: 6,
-          title: 'Digital Marketing Masterclass',
-          registeredDate: '7/15/2024',
-          location: 'Conference Hall, Chicago',
-          totalCapacity: 250,
-          registered: 180,
-          status: 'past',
-          image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=400&h=200&fit=crop'
-        }
-      ];
+      const now = new Date();
+      
+      // Transform API data to match component structure
+      let transformedEvents = apiEvents.map(event => {
+        const startTime = new Date(event.start_time);
+        const status = startTime >= now ? 'upcoming' : 'past';
+        return {
+          id: event.id,
+          title: event.title,
+          startTime: startTime,
+          registeredDate: startTime.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }),
+          location: event.location,
+          totalCapacity: event.capacity,
+          registered: event.registered_count || 0,
+          status: status,
+          image: event.primary_image_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400&h=200&fit=crop',
+          shortDescription: event.short_description,
+          category: event.category,
+          staffCount: event.staff_count || 0,
+          organizationName: event.organization_name,
+          groupName: event.group_name,
+        };
+      });
 
-      // Filter events based on status
-      let filteredEvents = mockEvents;
+      // Filter events based on start_time
       if (filter === 'upcoming') {
-        filteredEvents = mockEvents.filter(e => e.status === 'upcoming');
+        transformedEvents = transformedEvents.filter(e => e.startTime >= now);
       } else if (filter === 'past') {
-        filteredEvents = mockEvents.filter(e => e.status === 'past');
-      } else if (filter === 'cancelled') {
-        filteredEvents = mockEvents.filter(e => e.status === 'cancelled');
+        transformedEvents = transformedEvents.filter(e => e.startTime < now);
       }
 
       // Apply search filter
       if (searchTerm) {
-        filteredEvents = filteredEvents.filter(event =>
+        transformedEvents = transformedEvents.filter(event =>
           event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
           event.location.toLowerCase().includes(searchTerm.toLowerCase())
         );
       }
 
-      setEvents(filteredEvents);
+      setEvents(transformedEvents);
     } catch (error) {
       console.error('Error fetching events:', error);
     } finally {
@@ -128,23 +86,10 @@ export const ManageEventsPage = () => {
   const handleCancel = async (eventId) => {
     if (window.confirm('Are you sure you want to cancel this event?')) {
       try {
-        // await eventService.cancelEvent(eventId);
-        console.log('Event cancelled:', eventId);
+        await eventService.cancelEvent(eventId);
         fetchEvents();
       } catch (error) {
         console.error('Error cancelling event:', error);
-      }
-    }
-  };
-
-  const handleDelete = async (eventId) => {
-    if (window.confirm('Are you sure you want to delete this event? This action cannot be undone.')) {
-      try {
-        // await eventService.deleteEvent(eventId);
-        console.log('Event deleted:', eventId);
-        fetchEvents();
-      } catch (error) {
-        console.error('Error deleting event:', error);
       }
     }
   };
@@ -159,8 +104,6 @@ export const ManageEventsPage = () => {
         return 'bg-blue-100 text-blue-800';
       case 'past':
         return 'bg-gray-100 text-gray-800';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -172,8 +115,6 @@ export const ManageEventsPage = () => {
         return 'Upcoming';
       case 'past':
         return 'Past';
-      case 'cancelled':
-        return 'Cancelled';
       default:
         return 'Unknown';
     }
@@ -241,16 +182,6 @@ export const ManageEventsPage = () => {
             }`}
           >
             Past
-          </button>
-          <button
-            onClick={() => setFilter('cancelled')}
-            className={`px-6 py-2.5 rounded-full font-semibold transition-all duration-200 ${
-              filter === 'cancelled'
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Cancelled
           </button>
         </div>
 
@@ -400,31 +331,17 @@ export const ManageEventsPage = () => {
                           className="absolute right-0 top-full mt-1 py-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          {event.status !== 'cancelled' && (
-                            <button
-                              onClick={() => {
-                                handleCancel(event.id);
-                                setOpenDropdownId(null);
-                              }}
-                              className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                            >
-                              <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                              Cancel Event
-                            </button>
-                          )}
                           <button
                             onClick={() => {
-                              handleDelete(event.id);
+                              handleCancel(event.id);
                               setOpenDropdownId(null);
                             }}
-                            className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                            className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
-                            Delete Event
+                            Cancel Event
                           </button>
                         </div>
                       )}

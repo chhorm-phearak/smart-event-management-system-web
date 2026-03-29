@@ -1,58 +1,107 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { organizationService } from '@/services';
+
+const createEmptyFormData = () => ({
+  org_name: '',
+  org_type: '',
+  contact: '',
+  email: '',
+  description: '',
+});
+
+const normalizeStatus = (status) => {
+  if (!status) return 'unknown';
+  const upper = status.toString().toUpperCase();
+  switch (upper) {
+    case 'ACTIVE':
+    case 'APPROVED':
+      return 'approved';
+    case 'PENDING':
+      return 'pending';
+    case 'REJECTED':
+      return 'rejected';
+    default:
+      return upper.toLowerCase();
+  }
+};
 
 export const RegisterOrganizationPage = () => {
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [organization, setOrganization] = useState(null);
-  const [formData, setFormData] = useState({
-    company_name: '',
-    type: '',
-    contact: '',
-    email: '',
-    description: ''
-  });
+  const [formData, setFormData] = useState(() => createEmptyFormData());
   const [errors, setErrors] = useState({});
   const [success, setSuccess] = useState(null);
+  const isMountedRef = useRef(true);
 
-  useEffect(() => {
-    fetchOrganizationStatus();
-  }, []);
+  const fetchOrganizationStatus = useCallback(async () => {
+    if (!isMountedRef.current) {
+      return;
+    }
 
-  const fetchOrganizationStatus = async () => {
+    setLoading(true);
+    setErrors(prev => {
+      if (!prev.submit) return prev;
+      const { submit, ...rest } = prev;
+      return rest;
+    });
+
     try {
-      setLoading(true);
-      // Mock data - replace with actual API call
-      // const data = await organizationService.getOrganizationStatus();
-      
-      const mockOrganization = {
-        id: 1,
-        company_name: 'Tech Events Inc.',
-        type: 'Technology',
-        contact: '+1 (555) 123-4567',
-        email: 'contact@techevents.com',
-        description: 'A leading technology event management company',
-        status: 'pending',
-        submittedDate: '2024-02-15'
-      };
+      const response = await organizationService.getCurrentOrganization();
+      if (!isMountedRef.current) return;
 
-      setOrganization(mockOrganization);
-      if (mockOrganization) {
+      const payload = response?.data;
+      if (payload?.data) {
+        const { source, status, data: orgData } = payload;
+        const normalizedStatus = normalizeStatus(status ?? orgData?.status);
+        const normalizedOrganization = {
+          ...orgData,
+          source,
+          status: normalizedStatus,
+          rawStatus: status ?? orgData?.status,
+          submittedDate: orgData?.created_at,
+        };
+
+        setOrganization(normalizedOrganization);
         setFormData({
-          company_name: mockOrganization.company_name || '',
-          type: mockOrganization.type || '',
-          contact: mockOrganization.contact || '',
-          email: mockOrganization.email || '',
-          description: mockOrganization.description || ''
+          org_name: orgData?.org_name ?? '',
+          org_type: orgData?.org_type ?? '',
+          contact: orgData?.contact ?? '',
+          email: orgData?.email ?? '',
+          description: orgData?.description ?? '',
         });
+      } else {
+        setOrganization(null);
+        setFormData(createEmptyFormData());
       }
     } catch (error) {
-      console.error('Error fetching organization status:', error);
+      if (!isMountedRef.current) return;
+
+      if (error.response?.status === 404) {
+        setOrganization(null);
+        setFormData(createEmptyFormData());
+      } else {
+        console.error('Error fetching organization status:', error);
+        setErrors(prev => ({
+          ...prev,
+          submit: error.response?.data?.message || 'Failed to load organization status. Please try again.',
+        }));
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    fetchOrganizationStatus();
+
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, [fetchOrganizationStatus]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -72,11 +121,11 @@ export const RegisterOrganizationPage = () => {
   const validateForm = () => {
     const newErrors = {};
     
-    if (!formData.company_name.trim()) {
-      newErrors.company_name = 'Company name is required';
+    if (!formData.org_name.trim()) {
+      newErrors.org_name = 'Organization name is required';
     }
-    if (!formData.type.trim()) {
-      newErrors.type = 'Type is required';
+    if (!formData.org_type.trim()) {
+      newErrors.org_type = 'Organization type is required';
     }
     if (!formData.contact.trim()) {
       newErrors.contact = 'Contact is required';
@@ -104,15 +153,30 @@ export const RegisterOrganizationPage = () => {
     try {
       setIsSubmitting(true);
       setSuccess(null);
-      
-      // await organizationService.registerOrganization(formData);
-      console.log('Submitting organization registration:', formData);
-      
-      setSuccess('Organization registration submitted successfully!');
-      fetchOrganizationStatus();
+      setErrors({});
+
+      const payload = {
+        org_name: formData.org_name.trim(),
+        org_type: formData.org_type.trim(),
+        contact: formData.contact.trim(),
+        email: formData.email.trim(),
+        description: formData.description.trim(),
+      };
+
+      const response = await organizationService.submitOrganizationApplication(payload);
+
+      setSuccess(response?.message || 'Organization registration submitted successfully!');
+      await fetchOrganizationStatus();
     } catch (error) {
       console.error('Error registering organization:', error);
-      setErrors({ submit: error.response?.data?.message || 'Failed to submit registration. Please try again.' });
+      const errorResponse = error.response?.data;
+      const fieldErrors = errorResponse?.errors;
+
+      if (fieldErrors && typeof fieldErrors === 'object') {
+        setErrors(fieldErrors);
+      } else {
+        setErrors({ submit: errorResponse?.message || 'Failed to submit registration. Please try again.' });
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -121,11 +185,13 @@ export const RegisterOrganizationPage = () => {
   const getStatusBadge = (status) => {
     switch (status) {
       case 'approved':
-        return 'bg-green-100 text-green-800';
       case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
       case 'rejected':
-        return 'bg-red-100 text-red-800';
+        return {
+          approved: 'bg-green-100 text-green-800',
+          pending: 'bg-yellow-100 text-yellow-800',
+          rejected: 'bg-red-100 text-red-800'
+        }[status];
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -144,7 +210,10 @@ export const RegisterOrganizationPage = () => {
     }
   };
 
-  if (loading) {
+  const isApproved = organization?.status === 'approved';
+  const isPending = organization?.status === 'pending';
+
+  if (loading && !organization) {
     return (
       <div className="flex justify-center items-center min-h-[60vh]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -221,42 +290,42 @@ export const RegisterOrganizationPage = () => {
           {/* Company Name */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Company name *
+              Organization name *
             </label>
             <input
               type="text"
-              name="company_name"
-              value={formData.company_name}
+              name="org_name"
+              value={formData.org_name}
               onChange={handleChange}
-              disabled={organization?.status === 'approved'}
-              placeholder="Enter your company name"
+              disabled={isApproved}
+              placeholder="Enter your organization name"
               className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all ${
-                errors.company_name ? 'border-red-300' : 'border-gray-300'
-              } ${organization?.status === 'approved' ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+                errors.org_name ? 'border-red-300' : 'border-gray-300'
+              } ${isApproved ? 'bg-gray-50 cursor-not-allowed' : ''}`}
             />
-            {errors.company_name && (
-              <p className="mt-1 text-sm text-red-600">{errors.company_name}</p>
+            {errors.org_name && (
+              <p className="mt-1 text-sm text-red-600">{errors.org_name}</p>
             )}
           </div>
 
           {/* Type */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Type *
+              Organization type *
             </label>
             <input
               type="text"
-              name="type"
-              value={formData.type}
+              name="org_type"
+              value={formData.org_type}
               onChange={handleChange}
-              disabled={organization?.status === 'approved'}
-              placeholder="e.g., Technology, Business, Education"
+              disabled={isApproved}
+              placeholder="e.g., EDUCATION, TECHNOLOGY, NON_PROFIT"
               className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all ${
-                errors.type ? 'border-red-300' : 'border-gray-300'
-              } ${organization?.status === 'approved' ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+                errors.org_type ? 'border-red-300' : 'border-gray-300'
+              } ${isApproved ? 'bg-gray-50 cursor-not-allowed' : ''}`}
             />
-            {errors.type && (
-              <p className="mt-1 text-sm text-red-600">{errors.type}</p>
+            {errors.org_type && (
+              <p className="mt-1 text-sm text-red-600">{errors.org_type}</p>
             )}
           </div>
 
@@ -271,11 +340,11 @@ export const RegisterOrganizationPage = () => {
                 name="contact"
                 value={formData.contact}
                 onChange={handleChange}
-                disabled={organization?.status === 'approved'}
-                placeholder="+1 (555) 123-4567"
+                disabled={isApproved}
+                placeholder="+85512345678"
                 className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all ${
                   errors.contact ? 'border-red-300' : 'border-gray-300'
-                } ${organization?.status === 'approved' ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+                } ${isApproved ? 'bg-gray-50 cursor-not-allowed' : ''}`}
               />
               {errors.contact && (
                 <p className="mt-1 text-sm text-red-600">{errors.contact}</p>
@@ -290,11 +359,11 @@ export const RegisterOrganizationPage = () => {
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                disabled={organization?.status === 'approved'}
-                placeholder="contact@company.com"
+                disabled={isApproved}
+                placeholder="contact@organization.org"
                 className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all ${
                   errors.email ? 'border-red-300' : 'border-gray-300'
-                } ${organization?.status === 'approved' ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+                } ${isApproved ? 'bg-gray-50 cursor-not-allowed' : ''}`}
               />
               {errors.email && (
                 <p className="mt-1 text-sm text-red-600">{errors.email}</p>
@@ -311,12 +380,12 @@ export const RegisterOrganizationPage = () => {
               name="description"
               value={formData.description}
               onChange={handleChange}
-              disabled={organization?.status === 'approved'}
+              disabled={isApproved}
               rows={5}
               placeholder="Describe your organization, its mission, and what types of events you organize..."
               className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none ${
                 errors.description ? 'border-red-300' : 'border-gray-300'
-              } ${organization?.status === 'approved' ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+              } ${isApproved ? 'bg-gray-50 cursor-not-allowed' : ''}`}
             />
             {errors.description && (
               <p className="mt-1 text-sm text-red-600">{errors.description}</p>
@@ -338,11 +407,11 @@ export const RegisterOrganizationPage = () => {
           )}
 
           {/* Submit Button */}
-          {organization?.status !== 'approved' && (
+          {!isApproved && (
             <div className="flex justify-end pt-4 border-t border-gray-200">
               <button
                 type="submit"
-                disabled={isSubmitting || organization?.status === 'pending'}
+                disabled={isSubmitting || isPending}
                 className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed font-semibold flex items-center gap-2"
               >
                 {isSubmitting ? (

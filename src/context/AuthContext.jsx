@@ -1,10 +1,12 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { getAccessToken, removeAccessToken } from '@/utils';
 import { authService } from '@/services';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -37,6 +39,7 @@ export const AuthProvider = ({ children }) => {
       const userData = data?.data?.user || data?.user || { email };
       console.log('Login User Data:', userData); // Debug log
       setUser(userData);
+      await queryClient.invalidateQueries({ predicate: () => true });
       
       // Handle redirect after login
       const redirectPath = sessionStorage.getItem('redirectAfterLogin');
@@ -60,6 +63,7 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(true);
       const profileUser = data?.data?.user || data?.user || userData;
       setUser(profileUser);
+      await queryClient.invalidateQueries({ predicate: () => true });
       return { success: true, data };
     } catch (error) {
       return {
@@ -78,6 +82,7 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(false);
       setUser(null);
       removeAccessToken();
+      queryClient.clear();
     }
   };
 

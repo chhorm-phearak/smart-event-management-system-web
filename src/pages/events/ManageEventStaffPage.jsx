@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { eventService, staffService } from '@/services';
+import { eventService, organizationService } from '@/services';
 
 export const ManageEventStaffPage = () => {
   const navigate = useNavigate();
@@ -11,57 +11,72 @@ export const ManageEventStaffPage = () => {
   const [availableStaff, setAvailableStaff] = useState([]);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedRole, setSelectedRole] = useState('CHECK_IN');
+  const [error, setError] = useState(null);
+  const [loadingStaff, setLoadingStaff] = useState(false);
 
   useEffect(() => {
     fetchEventData();
-    fetchStaff();
   }, [id]);
+
+  useEffect(() => {
+    if (event) {
+      fetchStaff();
+    }
+  }, [event]);
+
+  useEffect(() => {
+    if (showAssignModal && availableStaff.length === 0) {
+      console.log('Modal opened, fetching staff...');
+      fetchStaff();
+    }
+  }, [showAssignModal]);
 
   const fetchEventData = async () => {
     try {
       setLoading(true);
-      // Mock data - replace with actual API call
-      // const eventData = await eventService.getEventById(id);
-      // const staffData = await eventService.getEventStaff(id);
+      setError(null);
       
-      const mockEvent = {
-        id: id,
-        title: 'Tech Conference 2024',
-        date: '2024-03-15',
-        location: 'Convention Center, New York'
-      };
+      const [eventResponse, staffResponse] = await Promise.all([
+        eventService.getEventById(id),
+        eventService.getEventStaff(id)
+      ]);
+      
+      const eventData = eventResponse?.data;
+      const staffData = staffResponse?.data || [];
+      
+      console.log('Event data:', eventData);
+      
+      setEvent({
+        id: eventData.id,
+        title: eventData.title,
+        date: new Date(eventData.start_time).toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        }),
+        location: eventData.location
+      });
 
-      const mockAssignedStaff = [
-        {
-          id: 1,
-          name: 'Alice Johnson',
-          email: 'alice.johnson@example.com',
-          role: 'Check-In Staff',
-          assignedDate: '2024-02-20',
-          avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop'
-        },
-        {
-          id: 2,
-          name: 'Borey KOKO',
-          email: 'borey.koko@example.com',
-          role: 'Event Support',
-          assignedDate: '2024-02-20',
-          avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop'
-        },
-        {
-          id: 3,
-          name: 'Sarah Williams',
-          email: 'sarah.williams@example.com',
-          role: 'Check-In Staff',
-          assignedDate: '2024-02-22',
-          avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop'
-        }
-      ];
+      const transformedStaff = staffData.map(staff => ({
+        id: staff.id,
+        organizationMemberId: staff.organization_member_id,
+        userId: staff.user_id,
+        name: `${staff.first_name} ${staff.last_name}`,
+        email: staff.email,
+        role: staff.role,
+        assignedDate: new Date(staff.created_at).toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'numeric', 
+          day: 'numeric' 
+        }),
+        avatar: staff.img_url || `https://ui-avatars.com/api/?name=${staff.first_name}+${staff.last_name}&background=random`
+      }));
 
-      setEvent(mockEvent);
-      setAssignedStaff(mockAssignedStaff);
+      setAssignedStaff(transformedStaff);
     } catch (error) {
       console.error('Error fetching event data:', error);
+      setError('Failed to load event data. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -69,42 +84,73 @@ export const ManageEventStaffPage = () => {
 
   const fetchStaff = async () => {
     try {
-      // Mock data - replace with actual API call
-      // const data = await staffService.getAllStaff();
-      const mockStaff = [
-        { id: 1, name: 'John Doe', email: 'john@example.com', role: 'Event Manager' },
-        { id: 2, name: 'Jane Smith', email: 'jane@example.com', role: 'Coordinator' },
-        { id: 3, name: 'Mike Johnson', email: 'mike@example.com', role: 'Support Staff' },
-        { id: 4, name: 'Sarah Williams', email: 'sarah@example.com', role: 'Event Manager' },
-        { id: 5, name: 'David Brown', email: 'david@example.com', role: 'Coordinator' },
-        { id: 6, name: 'Emily Davis', email: 'emily@example.com', role: 'Support Staff' },
-      ];
-      setAvailableStaff(mockStaff);
+      setLoadingStaff(true);
+      console.log('Fetching organization members...');
+      
+      const response = await organizationService.getOrganizationMembers();
+      console.log('Staff response:', response);
+      
+      const responseData = response?.data || [];
+      
+      // Extract members and organization from nested structure
+      let allMembers = [];
+      let organizationId = null;
+      if (responseData.length > 0) {
+        allMembers = responseData[0].members || [];
+        organizationId = responseData[0].organization?.id;
+      }
+      
+      console.log('Members count:', allMembers.length);
+      console.log('Organization ID:', organizationId);
+      
+      const transformedMembers = allMembers.map(member => ({
+        id: member.id,
+        userId: member.user_id,
+        organizationId: organizationId,
+        name: `${member.first_name} ${member.last_name}`,
+        email: member.email,
+        contact: member.profile_contact,
+        avatar: member.img_url || `https://ui-avatars.com/api/?name=${member.first_name}+${member.last_name}&background=random`,
+        joinedAt: new Date(member.joined_at).toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'numeric', 
+          day: 'numeric' 
+        })
+      }));
+      
+      setAvailableStaff(transformedMembers);
     } catch (error) {
       console.error('Error fetching staff:', error);
+      setError('Failed to load organization members.');
+    } finally {
+      setLoadingStaff(false);
     }
   };
 
-  const handleAssignStaff = async (staffId, role) => {
+  const handleAssignStaff = async (member) => {
+    if (!window.confirm(`Assign ${member.name} as ${getRoleLabel(selectedRole)}?`)) {
+      return;
+    }
+    
     try {
-      // await eventService.assignStaffToEvent(id, staffId, role);
-      console.log('Assigning staff:', staffId, role);
-      // Refresh the assigned staff list
-      fetchEventData();
+      await eventService.assignStaffToEvent(id, member.organizationId, member.userId, selectedRole);
+      await fetchEventData();
       setShowAssignModal(false);
+      setSelectedRole('CHECK_IN');
     } catch (error) {
       console.error('Error assigning staff:', error);
+      setError('Failed to assign staff. Please try again.');
     }
   };
 
   const handleRemoveStaff = async (staffId) => {
     if (window.confirm('Are you sure you want to remove this staff member from the event?')) {
       try {
-        // await eventService.removeStaffFromEvent(id, staffId);
-        console.log('Removing staff:', staffId);
-        setAssignedStaff(assignedStaff.filter(s => s.id !== staffId));
+        await eventService.removeStaffFromEvent(id, staffId);
+        await fetchEventData();
       } catch (error) {
         console.error('Error removing staff:', error);
+        setError('Failed to remove staff. Please try again.');
       }
     }
   };
@@ -118,6 +164,17 @@ export const ManageEventStaffPage = () => {
     staff.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     staff.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const getRoleLabel = (role) => {
+    switch (role) {
+      case 'CHECK_IN':
+        return 'Check-In Staff';
+      case 'EVENT_SUPPORT':
+        return 'Event Support';
+      default:
+        return role;
+    }
+  };
 
   if (loading) {
     return (
@@ -140,6 +197,14 @@ export const ManageEventStaffPage = () => {
           </svg>
           <span className="font-medium">Back to Manage Events</span>
         </button>
+        {error && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-800">
+            <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{error}</span>
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Manage Event Staff</h1>
@@ -224,7 +289,7 @@ export const ManageEventStaffPage = () => {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="px-3 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded-full">
-                    {staff.role}
+                    {getRoleLabel(staff.role)}
                   </span>
                   <button
                     onClick={() => handleRemoveStaff(staff.id)}
@@ -281,36 +346,51 @@ export const ManageEventStaffPage = () => {
             <div className="flex-1 overflow-y-auto p-6">
               <div className="mb-4">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Select Role</label>
-                <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                  <option value="check-in">Check-In Staff</option>
-                  <option value="support">Event Support</option>
+                <select 
+                  value={selectedRole}
+                  onChange={(e) => setSelectedRole(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="CHECK_IN">Check-In Staff</option>
+                  <option value="EVENT_SUPPORT">Event Support</option>
                 </select>
               </div>
-              {filteredStaff.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No staff members available</p>
+              {loadingStaff ? (
+                <div className="flex justify-center items-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+              ) : filteredStaff.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-500 mb-2">No staff members available</p>
+                  <p className="text-gray-400 text-sm">Add members to your organization first</p>
+                </div>
               ) : (
                 <div className="space-y-3">
-                  {filteredStaff.map((staff) => {
-                    const isAssigned = assignedStaff.some(s => s.id === staff.id);
+                  {filteredStaff.map((member) => {
+                    const isAssigned = assignedStaff.some(s => s.organizationMemberId === member.id);
                     return (
                       <div
-                        key={staff.id}
+                        key={member.id}
                         className={`flex items-center gap-4 p-4 border rounded-lg ${
                           isAssigned
                             ? 'border-gray-200 bg-gray-50 opacity-60'
                             : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50 cursor-pointer'
                         }`}
-                        onClick={() => !isAssigned && handleAssignStaff(staff.id, 'Check-In Staff')}
+                        onClick={() => !isAssigned && handleAssignStaff(member)}
                       >
-                        <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                          <span className="text-gray-600 font-semibold">
-                            {staff.name.split(' ').map(n => n[0]).join('')}
-                          </span>
+                        <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
+                          <img
+                            src={member.avatar}
+                            alt={member.name}
+                            className="w-full h-full object-cover"
+                          />
                         </div>
                         <div className="flex-1">
-                          <p className="font-medium text-gray-900">{staff.name}</p>
-                          <p className="text-sm text-gray-500">{staff.email}</p>
-                          <p className="text-xs text-gray-400 mt-1">{staff.role}</p>
+                          <p className="font-medium text-gray-900">{member.name}</p>
+                          <p className="text-sm text-gray-500">{member.email}</p>
+                          {member.contact && (
+                            <p className="text-xs text-gray-400 mt-1">{member.contact}</p>
+                          )}
                         </div>
                         {isAssigned && (
                           <span className="px-3 py-1 bg-gray-200 text-gray-600 text-xs font-semibold rounded-full">

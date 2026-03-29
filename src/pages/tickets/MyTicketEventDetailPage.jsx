@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { eventService } from '@/services';
 import { getApiOrigin } from '@/utils';
-import { QRCodeSVG } from 'qrcode.react';
 
 const FALLBACK_EVENT_IMAGE = `data:image/svg+xml;utf8,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400"><rect width="100%" height="100%" fill="#e5e7eb"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#6b7280" font-family="Arial, sans-serif" font-size="28">Event image not available</text></svg>'
@@ -93,7 +93,8 @@ const mapRawToEvent = (raw) => {
     price: raw.price ?? 0,
     organizer: raw.organization_name ?? raw.organizationName ?? raw.organizer ?? '—',
     image: imageUrl,
-    qrcode: raw.qrcode ?? raw.qr_code ?? '',
+    qrcode: (raw.qr_image_url || raw.qrcode) ?? raw.qr_code ?? '',
+    qrTicket: raw.qr_ticket ?? raw.qrTicket ?? raw.ticket_code ?? raw.code ?? '',
     registrationRequired: raw.registration_required ?? true,
     qrCodeAvailable: raw.qr_code_available ?? true,
     bringValidId: raw.bring_valid_id ?? true,
@@ -105,6 +106,7 @@ export const MyTicketEventDetailPage = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const [event, setEvent] = useState(null);
+  const [qrImage, setQrImage] = useState('');
   const [ticketCode, setTicketCode] = useState('');
   const [loading, setLoading] = useState(true);
   const [showQrModal, setShowQrModal] = useState(false);
@@ -118,6 +120,7 @@ export const MyTicketEventDetailPage = () => {
       setLoading(true);
       if (!id) {
         setEvent(null);
+        setQrImage('');
         setTicketCode('');
         return;
       }
@@ -131,6 +134,7 @@ export const MyTicketEventDetailPage = () => {
       const mappedEvent = mapRawToEvent(rawEvent);
       if (!mappedEvent) {
         setEvent(null);
+        setQrImage('');
         setTicketCode('');
         return;
       }
@@ -142,23 +146,32 @@ export const MyTicketEventDetailPage = () => {
       });
 
       const qrCode =
-        registeredEvent?.qrcode ??
+        (registeredEvent?.qr_image_url || registeredEvent?.qrcode) ??
         registeredEvent?.qr_code ??
-        registeredEvent?.ticket_code ??
-        registeredEvent?.code ??
         mappedEvent.qrcode ??
         '';
+      const qrTicket = (
+        registeredEvent?.qr_ticket ??
+        registeredEvent?.qrTicket ??
+        registeredEvent?.ticket_code ??
+        registeredEvent?.code ??
+        mappedEvent.qrTicket ??
+        ''
+      ).toString().trim();
       const registeredImage = toAbsoluteImageUrl(extractRawImageValue(registeredEvent));
 
       setEvent({
         ...mappedEvent,
         image: registeredImage || mappedEvent.image || FALLBACK_EVENT_IMAGE,
         qrcode: qrCode || mappedEvent.qrcode,
+        qrTicket: qrTicket || mappedEvent.qrTicket,
       });
-      setTicketCode(qrCode || '');
+      setQrImage(qrCode || mappedEvent.qrcode || '');
+      setTicketCode(qrTicket || mappedEvent.qrTicket || '');
     } catch (error) {
       console.error('Error fetching event details:', error);
       setEvent(null);
+      setQrImage('');
       setTicketCode('');
     } finally {
       setLoading(false);
@@ -173,17 +186,88 @@ export const MyTicketEventDetailPage = () => {
     setShowQrModal(false);
   };
 
-  const handleDownloadQr = () => {
-    // Download functionality would go here
-    console.log('Downloading QR ticket...');
+  const handleDownloadQr = async () => {
+    if (!qrImage) {
+      toast.error('No QR code available to download.');
+      return;
+    }
+
+    try {
+      const sanitizedName = event.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const filename = `${sanitizedName}_ticket_${timestamp}.png`;
+      
+      if (qrImage.startsWith('data:')) {
+        // Handle base64 data
+        const link = document.createElement('a');
+        link.href = qrImage;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        // Handle URL - use canvas to convert image to blob
+        const qrUrl = qrImage.startsWith('http') 
+          ? qrImage 
+          : `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}${qrImage}`;
+        
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = () => {
+            // Fallback to simple download
+            const link = document.createElement('a');
+            link.href = qrUrl;
+            link.download = filename;
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            resolve();
+          };
+          img.src = qrUrl;
+        });
+        
+        if (img.complete && img.naturalHeight !== 0) {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          
+          canvas.toBlob((blob) => {
+            const blobUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => window.URL.revokeObjectURL(blobUrl), 100);
+          }, 'image/png');
+        }
+      }
+      
+      toast.success('Ticket downloaded successfully!');
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('Failed to download ticket. Please try again.');
+    }
   };
 
   const handleCopyTicketCode = async () => {
-    if (!ticketCode) return;
+    if (!ticketCode) {
+      toast.error('No ticket code available to copy.');
+      return;
+    }
     try {
       await navigator.clipboard.writeText(ticketCode);
+      toast.success('Ticket code copied to clipboard!');
     } catch (error) {
       console.error('Failed to copy ticket code:', error);
+      toast.error('Failed to copy ticket code.');
     }
   };
 
@@ -208,7 +292,9 @@ export const MyTicketEventDetailPage = () => {
   };
 
   const attendancePercentage = event?.capacity ? Math.round((event.registered / event.capacity) * 100) : 0;
-  const isRegistered = Boolean(ticketCode);
+  const hasQrImage = Boolean(qrImage);
+  const hasTicketCode = Boolean(ticketCode);
+  const isRegistered = hasQrImage || hasTicketCode;
 
   if (loading) {
     return (
@@ -552,11 +638,18 @@ export const MyTicketEventDetailPage = () => {
               <div className="bg-white border-2 border-gray-200 rounded-xl p-6 mb-6">
                 <div className="flex flex-col items-center">
                   <div className="w-64 h-64 bg-white border-4 border-blue-100 rounded-xl p-4 mb-4 flex items-center justify-center shadow-inner">
-                    {isRegistered ? (
-                      <QRCodeSVG value={ticketCode} size={185} level="M" />
+                    {hasQrImage ? (
+                      <img
+                        src={qrImage.startsWith('data:') ? qrImage : `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}${qrImage}`}
+                        alt="Ticket QR Code"
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDR2MW02IDExaDJtLTYgMGgtMnY0bTAtMTF2M20wMGguMDFNMTIgMTJoNC4wMU0xNiAyMGg0TTQgMTJoNG0xMiAwaC4wMU01IDhoMmExIDEgMCAwMDEtMVY1YTEgMSAwIDAwLTEtMUg1YTEgMSAwIDAwLTEgMXYyYTEgMSAwIDAwMSAxem0xMiAwaDJhMSAxIDAgMDAxLTFWNWExIDEgMCAwMC0xLTFoLTJhMSAxIDAgMDAtMSAxdjJhMSAxIDAgMDAxIDF6TTUgMjBoMmExIDEgMCAwMDEtMXYtMmExIDEgMCAwMC0xLTFINWExIDEgMCAwMC0xIDF2MmExIDEgMCAwMDEgMXoiIGZpbGw9IiM5Q0EzQUYiLz4KPC9zdmc+';
+                        }}
+                      />
                     ) : (
                       <div className="w-full h-full bg-gray-100 rounded-lg flex items-center justify-center text-xs text-gray-500 text-center px-4">
-                        No ticket code available
+                        {isRegistered ? 'QR code image unavailable' : 'No ticket code available'}
                       </div>
                     )}
                   </div>
@@ -573,11 +666,11 @@ export const MyTicketEventDetailPage = () => {
                 </label>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 px-4 py-3 bg-white border-2 border-gray-300 rounded-lg font-mono font-semibold text-gray-900 text-center">
-                    {ticketCode || 'Not available'}
+                    {hasTicketCode ? ticketCode : isRegistered ? 'Ticket code unavailable' : 'Not available'}
                   </div>
                   <button
                     onClick={handleCopyTicketCode}
-                    disabled={!isRegistered}
+                    disabled={!hasTicketCode}
                     className="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2"
                     title="Copy ticket code"
                   >

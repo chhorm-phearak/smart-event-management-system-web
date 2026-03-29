@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { eventService } from '@/services';
 
 const formatEventDate = (isoString) => {
@@ -19,6 +20,7 @@ export const AllEventsPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedDate, setSelectedDate] = useState('all');
+  const [selectedQRCode, setSelectedQRCode] = useState(null);
 
   // Mock categories - replace with actual categories from API
   const categories = ['All Category', 'Technology', 'Business', 'Education', 'Entertainment', 'Sports'];
@@ -51,7 +53,7 @@ export const AllEventsPage = () => {
       maxAttendees: e.capacity ?? 0,
       category: e.category || 'Other',
       image: e.images?.[0]?.image_url || 'https://via.placeholder.com/400x200?text=Event',
-      qrcode: e.qrcode ?? e.qr_code ?? '',
+      qrcode: (e.qr_image_url || e.qrcode) ?? e.qr_code ?? '',
       start_time: e.start_time,
     }));
 
@@ -88,8 +90,77 @@ export const AllEventsPage = () => {
     return filtered;
   }, [rawEvents, searchQuery, selectedCategory, selectedDate]);
 
-  const handleEventClick = (eventId) => {
-    navigate(`/events/${eventId}`);
+  const handleDownloadQr = async (qrCode, title) => {
+    if (!qrCode) {
+      toast.error('No QR code available to download.');
+      return;
+    }
+
+    try {
+      // Set filename based on event title and current date
+      const sanitizedName = title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const filename = `${sanitizedName}_qr_${timestamp}.png`;
+      
+      if (qrCode.startsWith('data:')) {
+        // Handle base64 data
+        const link = document.createElement('a');
+        link.href = qrCode;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        // Handle URL - use canvas to convert image to blob (bypasses CORS for download)
+        const qrUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}${qrCode}`;
+        
+        // Create an image element
+        const img = new Image();
+        img.crossOrigin = 'anonymous'; // Try to request with CORS
+        
+        // Wait for image to load
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = () => {
+            // If CORS fails, fallback to simple download
+            const link = document.createElement('a');
+            link.href = qrUrl;
+            link.download = filename;
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            resolve();
+          };
+          img.src = qrUrl;
+        });
+        
+        // If image loaded successfully, convert to blob via canvas
+        if (img.complete && img.naturalHeight !== 0) {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          
+          canvas.toBlob((blob) => {
+            const blobUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => window.URL.revokeObjectURL(blobUrl), 100);
+          }, 'image/png');
+        }
+      }
+      
+      toast.success('QR code downloaded successfully!');
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('Failed to download QR code. Please try again.');
+    }
   };
 
   return (
@@ -262,9 +333,12 @@ export const AllEventsPage = () => {
             {events.map((event) => (
               <div
                 key={event.id}
-                className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => handleEventClick(event.id)}
+                className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
               >
+                <div 
+                  className="cursor-pointer"
+                  onClick={() => navigate(`/events/${event.id}`)}
+                >
                 {/* Event Image */}
                 <div className="w-full h-48 bg-gradient-to-br from-orange-200 to-orange-300 relative overflow-hidden">
                   <img
@@ -386,11 +460,128 @@ export const AllEventsPage = () => {
                     </svg>
                   </button>
                 </div>
+                </div>
+
+                {/* QR Code - Outside the clickable div */}
+                {event.qrcode && (
+                  <div className="px-4 pb-4">
+                    <div 
+                      className="flex items-center gap-2 text-gray-600 cursor-pointer hover:text-blue-600 transition-colors p-2 rounded hover:bg-gray-50"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedQRCode({
+                          title: event.title,
+                          qrcode: event.qrcode
+                        });
+                      }}
+                    >
+                      <svg
+                        className="w-5 h-5 text-blue-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
+                        />
+                      </svg>
+                      <span className="text-sm">QR Available</span>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* QR Code Modal */}
+      {selectedQRCode && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={() => setSelectedQRCode(null)}
+        >
+          <div 
+            className="bg-white rounded-lg p-6 max-w-sm w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">{selectedQRCode.title}</h3>
+              <button
+                onClick={() => setSelectedQRCode(null)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="flex justify-center mb-4">
+              <img
+                src={selectedQRCode.qrcode.startsWith('data:') ? selectedQRCode.qrcode : `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}${selectedQRCode.qrcode}`}
+                alt="QR Code"
+                className="w-64 h-64 object-contain"
+                onLoad={() => {
+                  console.log('QR Code image loaded successfully in AllEventsPage');
+                }}
+                onError={(e) => {
+                  console.error('QR Code image failed to load in AllEventsPage:', e);
+                  console.error('QR Code data type:', typeof selectedQRCode.qrcode);
+                  console.error('QR Code data length:', selectedQRCode.qrcode?.length);
+                  console.error('QR Code data starts with:', selectedQRCode.qrcode?.substring(0, 50));
+                  e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDR2MW02IDExaDJtLTYgMGgtMnY0bTAtMTF2M20wMGguMDFNMTIgMTJoNC4wMU0xNiAyMGg0TTQgMTJoNG0xMiAwaC4wMU01IDhoMmExIDEgMCAwMDEtMVY1YTEgMSAwIDAwLTEtMUg1YTEgMSAwIDAwLTEgMXYyYTEgMSAwIDAwMSAxem0xMiAwaDJhMSAxIDAgMDAxLTFWNWExIDEgMCAwMC0xLTFoLTJhMSAxIDAgMDAtMSAxdjJhMSAxIDAgMDAxIDF6TTUgMjBoMmExIDEgMCAwMDEtMXYtMmExIDEgMCAwMC0xLTFINWExIDEgMCAwMC0xIDF2MmExIDEgMCAwMTEgMXoiIGZpbGw9IiM5Q0EzQUYiLz4KPC9zdmc+';
+                }}
+              />
+            </div>
+            
+            <p className="text-center text-sm text-gray-600 mb-4">
+              Scan this QR code to register for the event
+            </p>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setSelectedQRCode(null)}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => handleDownloadQr(selectedQRCode.qrcode, selectedQRCode.title)}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                  />
+                </svg>
+                Download
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

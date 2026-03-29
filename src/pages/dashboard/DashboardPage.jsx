@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { eventService } from '@/services';
+import { organizationService } from '@/services';
 
 export const DashboardPage = () => {
   const navigate = useNavigate();
@@ -10,74 +10,79 @@ export const DashboardPage = () => {
   const [stats, setStats] = useState({
     totalEvents: 0,
     upcomingEvents: 0,
-    totalRevenue: 0,
-    totalAttendees: 0,
-    publishedEvents: 0
+    pastEvents: 0,
+    totalAttendees: 0
   });
   const [recentEvents, setRecentEvents] = useState([]);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0
+  });
 
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+  }, [pagination.page]);
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
       
-      // Mock data for demonstration - replace with actual API calls
-      // const statsData = await eventService.getDashboardStats();
-      // const eventsData = await eventService.getRecentEvents();
+      // Fetch real data from API
+      const [statsResponse, eventsResponse] = await Promise.all([
+        organizationService.getDashboardStats(),
+        organizationService.getDashboardEvents(pagination.page, pagination.limit)
+      ]);
+
+      // Map stats from API response
+      const statsData = statsResponse?.data || statsResponse || {};
+      setStats({
+        totalEvents: statsData.total_events ?? 0,
+        upcomingEvents: statsData.upcoming_events ?? 0,
+        pastEvents: statsData.past_events ?? 0,
+        totalAttendees: statsData.total_attendees ?? 0
+      });
+
+      // Map events from API response
+      const eventsData = eventsResponse?.data || eventsResponse || {};
+      const events = eventsData.events || eventsData.data || [];
       
-      // Mock statistics
-      const mockStats = {
-        totalEvents: 7,
-        upcomingEvents: 0,
-        totalRevenue: 200,
-        totalAttendees: 5,
-        publishedEvents: 7
-      };
+      const mappedEvents = events.map((e) => ({
+        id: e.id,
+        title: e.title,
+        date: formatEventDate(e.start_time),
+        time: formatEventTime(e.start_time),
+        maxAttendees: e.capacity ?? 0,
+        price: e.price ?? 0,
+        status: e.status || 'published',
+        image: e.images?.[0]?.image_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400&h=200&fit=crop',
+        location: e.location || e.full_address || '—',
+        category: e.category || 'Other'
+      }));
 
-      // Mock recent events
-      const mockRecentEvents = [
-        {
-          id: 1,
-          title: 'Web Development',
-          date: 'Dec 30, 2025',
-          time: '09:00 AM',
-          maxAttendees: 100,
-          price: 600,
-          status: 'published',
-          image: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=400&h=200&fit=crop'
-        },
-        {
-          id: 2,
-          title: 'App Development',
-          date: 'April 10, 2026',
-          time: '07:00 AM',
-          maxAttendees: 200,
-          price: 600,
-          status: 'published',
-          image: 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=400&h=200&fit=crop'
-        },
-        {
-          id: 3,
-          title: 'Data Science Workshop',
-          date: 'May 15, 2026',
-          time: '10:00 AM',
-          maxAttendees: 150,
-          price: 800,
-          status: 'published',
-          image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400&h=200&fit=crop'
-        }
-      ];
-
-      setStats(mockStats);
-      setRecentEvents(mockRecentEvents);
+      setRecentEvents(mappedEvents);
+      setPagination(prev => ({
+        ...prev,
+        total: eventsData.total ?? eventsData.pagination?.total ?? 0,
+        totalPages: eventsData.total_pages ?? eventsData.pagination?.totalPages ?? Math.ceil((eventsData.total || 0) / prev.limit)
+      }));
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const formatEventDate = (isoString) => {
+    if (!isoString) return '';
+    return new Date(isoString).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' });
+  };
+
+  const formatEventTime = (isoString) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
   };
 
   const getUserDisplayName = () => {
@@ -140,7 +145,7 @@ export const DashboardPage = () => {
           <div>
             <p className="text-sm font-medium text-gray-600 mb-1">Total Events</p>
             <p className="text-3xl font-bold text-gray-900 mb-1">{stats.totalEvents}</p>
-            <p className="text-xs text-gray-500">{stats.publishedEvents} published</p>
+            <p className="text-xs text-gray-500">All your events</p>
           </div>
         </div>
 
@@ -163,22 +168,22 @@ export const DashboardPage = () => {
           </div>
         </div>
 
-        {/* Total Revenue Card */}
+        {/* Past Events Card */}
         <div className="bg-white rounded-xl shadow-md border border-gray-100 p-6 hover:shadow-lg transition-all duration-300 group">
           <div className="flex items-start justify-between mb-4">
-            <div className="p-3 bg-emerald-100 rounded-xl group-hover:scale-110 transition-transform duration-300">
-              <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <div className="p-3 bg-orange-100 rounded-xl group-hover:scale-110 transition-transform duration-300">
+              <svg className="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <div className="px-3 py-1 bg-emerald-50 rounded-full">
-              <span className="text-xs font-semibold text-emerald-700">Revenue</span>
+            <div className="px-3 py-1 bg-orange-50 rounded-full">
+              <span className="text-xs font-semibold text-orange-700">Completed</span>
             </div>
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-600 mb-1">Total Revenue</p>
-            <p className="text-3xl font-bold text-gray-900 mb-1">${stats.totalRevenue}</p>
-            <p className="text-xs text-gray-500">From all Events</p>
+            <p className="text-sm font-medium text-gray-600 mb-1">Past Events</p>
+            <p className="text-3xl font-bold text-gray-900 mb-1">{stats.pastEvents}</p>
+            <p className="text-xs text-gray-500">Completed events</p>
           </div>
         </div>
 
@@ -237,62 +242,107 @@ export const DashboardPage = () => {
             </button>
           </div>
         ) : (
-          <div className="space-y-4">
-            {recentEvents.map((event) => (
-              <div
-                key={event.id}
-                className="bg-gray-50 rounded-xl p-6 border border-gray-200 hover:shadow-md transition-all duration-200"
-              >
-                <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                  {/* Event Image */}
-                  <div className="w-full lg:w-32 h-32 rounded-lg overflow-hidden flex-shrink-0">
-                    <img
-                      src={event.image}
-                      alt={event.title}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
+          <>
+            <div className="space-y-4">
+              {recentEvents.map((event) => (
+                <div
+                  key={event.id}
+                  className="bg-gray-50 rounded-xl p-6 border border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer"
+                  onClick={() => navigate(`/events/${event.id}`)}
+                >
+                  <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                    {/* Event Image */}
+                    <div className="w-full lg:w-32 h-32 rounded-lg overflow-hidden flex-shrink-0">
+                      <img
+                        src={event.image}
+                        alt={event.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400&h=200&fit=crop';
+                        }}
+                      />
+                    </div>
 
-                  {/* Event Details */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-xl font-bold text-gray-900 mb-3">{event.title}</h3>
-                    <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 mb-4">
-                      <div className="flex items-center gap-2">
-                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        <span>{event.date}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span>{event.time}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                        </svg>
-                        <span>Max {event.maxAttendees}</span>
+                    {/* Event Details */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-xl font-bold text-gray-900 mb-3">{event.title}</h3>
+                      <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 mb-4">
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          <span>{event.date}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span>{event.time}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          <span className="truncate max-w-[200px]">{event.location}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                          </svg>
+                          <span>Max {event.maxAttendees}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Status and Price Tags */}
-                  <div className="flex flex-col items-end gap-3 flex-shrink-0">
-                    <div className="flex flex-wrap gap-2 justify-end">
-                      <span className="px-3 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded-full">
-                        Published
-                      </span>
-                      <span className="px-3 py-1 bg-gray-200 text-gray-700 text-xs font-semibold rounded-full">
-                        ${event.price}
-                      </span>
+                    {/* View Detail Button */}
+                    <div className="flex flex-col items-end gap-3 flex-shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/events/${event.id}`);
+                        }}
+                        className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                      >
+                        <span>View Detail</span>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
                     </div>
                   </div>
                 </div>
+              ))}
+            </div>
+
+            {/* Pagination */}
+            {pagination.totalPages > 1 && (
+              <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-200">
+                <p className="text-sm text-gray-600">
+                  Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} events
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+                    disabled={pagination.page === 1}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Previous
+                  </button>
+                  <span className="px-4 py-2 text-sm text-gray-600">
+                    Page {pagination.page} of {pagination.totalPages}
+                  </span>
+                  <button
+                    onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+                    disabled={pagination.page >= pagination.totalPages}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </div>
     </div>

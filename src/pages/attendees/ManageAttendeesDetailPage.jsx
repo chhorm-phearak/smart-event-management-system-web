@@ -1,123 +1,179 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
+import { attendeeService } from '@/services';
+
+const FILE_SCANNER_ID = 'qr-file-scanner';
 
 export const ManageAttendeesDetailPage = () => {
   const navigate = useNavigate();
   const { id } = useParams();
-  const [attendees, setAttendees] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedEvent, setSelectedEvent] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [showScanner, setShowScanner] = useState(false);
   const [ticketCode, setTicketCode] = useState('');
   const [scanning, setScanning] = useState(false);
-  const [scannedResult, setScannedResult] = useState(null);
-  const [error, setError] = useState(null);
-  const scannerRef = useRef(null);
+  const [qrAlertData, setQrAlertData] = useState(null);
+  const [scannerError, setScannerError] = useState(null);
   const html5QrCodeRef = useRef(null);
+  const fileScannerRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
-    fetchAttendeesData();
-    
-    // Cleanup scanner on unmount
     return () => {
       if (html5QrCodeRef.current) {
         html5QrCodeRef.current.stop().catch(() => {});
       }
     };
-  }, [id]);
+  }, []);
 
-  const fetchAttendeesData = async () => {
-    try {
-      setLoading(true);
-      // Mock data for demonstration
-      const mockEvent = {
-        id: id,
-        title: 'Tech Conference 2024',
-        date: '2024-03-15',
-        location: 'Convention Center, New York'
-      };
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    isFetching,
+    refetch,
+  } = useQuery({
+    queryKey: ['event-attendees', id],
+    queryFn: () => attendeeService.getEventAttendees(id),
+    enabled: Boolean(id),
+    refetchOnWindowFocus: false,
+  });
 
-      const mockAttendees = [
-        {
-          id: 1,
-          name: 'John Smith',
-          email: 'john.smith@example.com',
-          phone: '+1 (555) 123-4567',
-          event: 'Tech Conference 2024',
-          registrationDate: '2024-02-10',
-          status: 'checked-in',
-          ticketCode: 'TICKET-ABC123'
-        },
-        {
-          id: 2,
-          name: 'Sarah Johnson',
-          email: 'sarah.j@example.com',
-          phone: '+1 (555) 987-6543',
-          event: 'Tech Conference 2024',
-          registrationDate: '2024-02-12',
-          status: 'checked-in',
-          ticketCode: 'TICKET-DEF456'
-        },
-        {
-          id: 3,
-          name: 'Mike Davis',
-          email: 'mike.davis@example.com',
-          phone: '+1 (555) 456-7890',
-          event: 'Tech Conference 2024',
-          registrationDate: '2024-02-15',
-          status: 'registered',
-          ticketCode: 'TICKET-GHI789'
-        },
-        {
-          id: 4,
-          name: 'Emily Wilson',
-          email: 'emily.w@example.com',
-          phone: '+1 (555) 234-5678',
-          event: 'Tech Conference 2024',
-          registrationDate: '2024-02-20',
-          status: 'registered',
-          ticketCode: 'TICKET-JKL012'
-        },
-        {
-          id: 5,
-          name: 'Robert Brown',
-          email: 'robert.brown@example.com',
-          phone: '+1 (555) 876-5432',
-          event: 'Tech Conference 2024',
-          registrationDate: '2024-02-25',
-          status: 'checked-in',
-          ticketCode: 'TICKET-MNO345'
-        },
-        {
-          id: 6,
-          name: 'Lisa Anderson',
-          email: 'lisa.anderson@example.com',
-          phone: '+1 (555) 345-6789',
-          event: 'Tech Conference 2024',
-          registrationDate: '2024-03-01',
-          status: 'registered',
-          ticketCode: 'TICKET-PQR678'
-        }
+  const attendeeData = data?.data ?? {};
+  const eventInfo = attendeeData.event ?? {};
+  const stats = attendeeData.stats ?? {
+    total_attendees: 0,
+    total_checked_in: 0,
+    total_not_checked_in: 0,
+  };
+  const attendees = attendeeData.attendees ?? [];
+
+  const statusOptions = useMemo(() => {
+    const unique = new Set(attendees.map((attendee) => attendee.status).filter(Boolean));
+    return ['all', ...Array.from(unique)];
+  }, [attendees]);
+
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+
+  const filteredAttendees = useMemo(() => {
+    return attendees.filter((attendee) => {
+      const searchFields = [
+        attendee.name,
+        attendee.email,
+        attendee.contact,
+        attendee.registration_id,
+        attendee.user_id,
       ];
 
-      setSelectedEvent(mockEvent);
-      setAttendees(mockAttendees);
-    } catch (error) {
-      console.error('Error fetching attendees:', error);
-    } finally {
-      setLoading(false);
+      const matchesSearch =
+        !normalizedSearch ||
+        searchFields.some((field) => field?.toLowerCase().includes(normalizedSearch));
+
+      const matchesStatus =
+        selectedStatus === 'all' || attendee.status === selectedStatus;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [attendees, normalizedSearch, selectedStatus]);
+
+  const totalAttendees = stats.total_attendees ?? attendees.length;
+  const checkedInAttendees = stats.total_checked_in ?? attendees.filter((a) => a.status === 'CHECKED_IN').length;
+  const notCheckedInAttendees =
+    stats.total_not_checked_in ?? Math.max(totalAttendees - checkedInAttendees, 0);
+
+  const isInitialLoading = isLoading && !data;
+  const queryErrorMessage = isError
+    ? error?.response?.data?.message || error?.message || 'Failed to fetch attendees'
+    : null;
+
+  const formatDateTime = (isoString) => {
+    if (!isoString) return '—';
+    const date = new Date(isoString);
+    return date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const renderStatusLabel = (status) => {
+    if (!status) return 'Unknown';
+    return status.replace(/_/g, ' ').toLowerCase().replace(/(^|\s)\w/g, (match) => match.toUpperCase());
+  };
+
+  const extractTicketInfo = (rawValue) => {
+    const info = {
+      qrTicketId: '',
+      payload: null,
+      text: '',
+      metadata: {},
+    };
+
+    if (typeof rawValue === 'string') {
+      info.text = rawValue;
+      try {
+        const parsed = JSON.parse(rawValue);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          info.payload = parsed;
+        }
+      } catch {
+        // ignore JSON parse errors – raw string will be used as identifier
+      }
+    } else if (rawValue && typeof rawValue === 'object') {
+      info.payload = rawValue;
+      info.text = JSON.stringify(rawValue);
     }
+
+    const payload = info.payload;
+    if (payload) {
+      const candidateFields = [
+        payload.qr_ticket_id,
+        payload.qrTicketId,
+        payload.qr_ticket,
+        payload.qrTicket,
+        payload.registration_id,
+        payload.registrationId,
+        payload.ticket_id,
+        payload.ticketId,
+      ];
+      const candidate = candidateFields.find((val) => typeof val === 'string' && val.trim());
+      if (candidate) {
+        info.qrTicketId = candidate.trim();
+      }
+
+      const eventId = payload.event_id ?? payload.eventId;
+      if (eventId) info.metadata.eventId = eventId;
+      const userId = payload.user_id ?? payload.userId;
+      if (userId) info.metadata.userId = userId;
+      const registrationId = payload.registration_id ?? payload.registrationId;
+      if (registrationId) info.metadata.registrationId = registrationId;
+      info.metadata.payload = payload;
+    }
+
+    if (!info.qrTicketId && typeof rawValue === 'string' && rawValue.trim()) {
+      info.qrTicketId = rawValue.trim();
+    }
+
+    if (!info.text) {
+      info.text = typeof rawValue === 'string' ? rawValue : JSON.stringify(rawValue ?? '');
+    }
+
+    return info;
   };
 
   const handleScanQRCode = async () => {
     try {
       setScanning(true);
       setShowScanner(true);
-      setError(null);
-      setScannedResult(null);
+      setScannerError(null);
+      setQrAlertData(null);
 
       // Wait for the DOM element to be ready
       await new Promise(resolve => setTimeout(resolve, 200));
@@ -160,8 +216,7 @@ export const ManageAttendeesDetailPage = () => {
             cameraId,
             config,
             (decodedText, decodedResult) => {
-              setScannedResult(decodedText);
-              handleQRCodeScanned(decodedText);
+              handleDecodedQRCode(decodedText, decodedResult);
               stopScanner();
             },
             (errorMessage) => {
@@ -171,11 +226,10 @@ export const ManageAttendeesDetailPage = () => {
         } else {
           // Fallback to facingMode
           await html5QrCode.start(
-            { facingMode: "environment" },
+            { facingMode: 'environment' },
             config,
             (decodedText, decodedResult) => {
-              setScannedResult(decodedText);
-              handleQRCodeScanned(decodedText);
+              handleDecodedQRCode(decodedText, decodedResult);
               stopScanner();
             },
             (errorMessage) => {
@@ -187,11 +241,10 @@ export const ManageAttendeesDetailPage = () => {
         // If environment camera fails, try user camera (front)
         try {
           await html5QrCode.start(
-            { facingMode: "user" },
+            { facingMode: 'user' },
             config,
             (decodedText, decodedResult) => {
-              setScannedResult(decodedText);
-              handleQRCodeScanned(decodedText);
+              handleDecodedQRCode(decodedText, decodedResult);
               stopScanner();
             },
             (errorMessage) => {
@@ -220,10 +273,10 @@ export const ManageAttendeesDetailPage = () => {
         errorMessage += 'Please ensure camera permissions are granted and try again.';
       }
       
-      setError(errorMessage);
+      setScannerError(errorMessage);
       setScanning(false);
       setShowScanner(false);
-      
+
       // Clean up if initialization failed
       if (html5QrCodeRef.current) {
         try {
@@ -250,60 +303,239 @@ export const ManageAttendeesDetailPage = () => {
     }
   };
 
-  const handleQRCodeScanned = (code) => {
-    // Process the scanned QR code
-    console.log('QR Code scanned:', code);
-    setTicketCode(code);
-    // You can add API call here to check in the attendee
-    // For now, we'll just set the ticket code
+  const checkInMutation = useMutation({
+    mutationFn: ({ qrTicketId }) => attendeeService.checkInAttendee(qrTicketId),
+    onSuccess: (response) => {
+      const message = response?.message || 'Check-in successful';
+      const normalizedMessage = message.toLowerCase();
+      const alreadyChecked = normalizedMessage.includes('already checked in');
+      const toastMessage = alreadyChecked ? 'You are already checked in' : message;
+
+      if (alreadyChecked) {
+        toast.error(toastMessage);
+      } else {
+        toast.success(toastMessage);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['event-attendees', id] });
+
+      setQrAlertData((prev) => {
+        const next = {
+          ...(prev || {}),
+          message: toastMessage,
+          error: alreadyChecked,
+        };
+
+        if (response?.registration) {
+          const { event_title, user_name, email, checked_in_at } = response.registration;
+          next.registration = {
+            eventTitle: event_title,
+            userName: user_name,
+            email,
+            checkedInAt: checked_in_at,
+          };
+        }
+
+        return next;
+      });
+    },
+    onError: (mutationError) => {
+      const message =
+        mutationError?.response?.data?.message || mutationError?.message || 'Failed to check in attendee';
+      toast.error(message);
+      setQrAlertData((prev) => ({
+        ...(prev || {}),
+        message,
+        error: true,
+      }));
+    },
+  });
+
+  const checkInWithQrTicketId = (qrTicketId, metadata) => {
+    if (!qrTicketId) {
+      toast.error('QR ticket identifier is missing.');
+      setQrAlertData((prev) => ({
+        ...(prev || {}),
+        message: 'QR ticket identifier is missing.',
+        error: true,
+      }));
+      return;
+    }
+
+    setQrAlertData((prev) => ({
+      ...(prev || {}),
+      ...metadata,
+      scannedAt: new Date().toISOString(),
+    }));
+
+    checkInMutation.mutate({ qrTicketId });
   };
 
-  const handleManualCheckIn = () => {
-    if (ticketCode.trim()) {
-      console.log(`Manual check-in for ticket: ${ticketCode}`);
-      // API call to check in attendee
-      setTicketCode('');
+  const handleDecodedQRCode = (decodedText, decodedResult = {}) => {
+    if (!decodedText) {
+      toast.error('QR code was empty.');
+      return;
+    }
+
+    try {
+      const ticketInfo = extractTicketInfo(decodedText);
+      setTicketCode((prev) => prev); // Leave manual input unchanged
+      const formatName =
+        decodedResult?.result?.format?.formatName ||
+        decodedResult?.format?.formatName ||
+        decodedResult?.formatName ||
+        decodedResult?.decodedFormat ||
+        'QR_CODE';
+
+      const metadata = {
+        text: ticketInfo.text,
+        format: formatName,
+        source: decodedResult?.source || 'camera',
+        ...ticketInfo.metadata,
+      };
+
+      if (!ticketInfo.qrTicketId) {
+        throw new Error('QR ticket identifier is missing.');
+      }
+
+      checkInWithQrTicketId(ticketInfo.qrTicketId, metadata);
+    } catch (err) {
+      console.error('Failed to parse QR data:', err);
+      const message =
+        err instanceof SyntaxError
+          ? 'QR code does not contain valid JSON data.'
+          : err.message || 'Invalid QR code data.';
+      toast.error(message);
+      setQrAlertData((prev) => ({
+        ...(prev || {}),
+        message,
+        error: true,
+        text: typeof decodedText === 'string' ? decodedText : JSON.stringify(decodedText),
+        format:
+          decodedResult?.result?.format?.formatName ||
+          decodedResult?.format?.formatName ||
+          decodedResult?.formatName ||
+          decodedResult?.decodedFormat ||
+          'QR_CODE',
+        source: decodedResult?.source || 'camera',
+        scannedAt: new Date().toISOString(),
+      }));
     }
   };
 
-  const handleViewAttendee = (attendeeId) => {
-    navigate(`/attendees/${attendeeId}`);
+  const triggerImageUpload = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
   };
 
-  const handleRemoveAttendee = (attendeeId) => {
-    setAttendees(attendees.filter(att => att.id !== attendeeId));
+  const handleUploadImage = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    setScannerError(null);
+    setScanning(true);
+
+    try {
+      const html5QrCode = new Html5Qrcode(FILE_SCANNER_ID);
+      const decodedText = await html5QrCode.scanFile(file, true);
+      await html5QrCode.clear();
+      handleDecodedQRCode(decodedText, { source: 'upload' });
+      setShowScanner(false);
+    } catch (err) {
+      console.error('Image QR scan error:', err);
+      toast.error('Unable to read QR code from the selected image.');
+    } finally {
+      setScanning(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleManualCheckIn = () => {
+    if (!ticketCode.trim()) {
+      toast.error('Please enter QR data to check in.');
+      return;
+    }
+
+    try {
+      const ticketInfo = extractTicketInfo(ticketCode);
+
+      if (!ticketInfo.qrTicketId) {
+        throw new Error('QR ticket identifier is missing.');
+      }
+
+      const metadata = {
+        text: ticketInfo.text,
+        format: 'MANUAL_INPUT',
+        source: 'manual',
+        ...ticketInfo.metadata,
+      };
+
+      checkInWithQrTicketId(ticketInfo.qrTicketId, metadata);
+      setTicketCode('');
+    } catch (err) {
+      const message =
+        err instanceof SyntaxError
+          ? 'Manual input must contain a QR ticket identifier or valid JSON with a supported identifier.'
+          : err.message || 'Invalid manual QR data.';
+      toast.error(message);
+      setQrAlertData({
+        text: ticketCode,
+        format: 'MANUAL_INPUT',
+        source: 'manual',
+        scannedAt: new Date().toISOString(),
+        message,
+        error: true,
+      });
+    }
   };
 
   const getStatusBadge = (status) => {
     const styles = {
-      'checked-in': 'bg-green-100 text-green-800',
-      'registered': 'bg-yellow-100 text-yellow-800'
+      CHECKED_IN: 'bg-green-100 text-green-800',
+      NOT_CHECKED_IN: 'bg-yellow-100 text-yellow-800',
     };
     return styles[status] || 'bg-gray-100 text-gray-800';
   };
 
-  const filteredAttendees = attendees.filter(attendee => {
-    const matchesSearch = attendee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         attendee.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         attendee.ticketCode.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesEvent = selectedEvent === 'all' || attendee.event === selectedEvent.title;
-    const matchesStatus = selectedStatus === 'all' || attendee.status === selectedStatus;
-    
-    return matchesSearch && matchesEvent && matchesStatus;
+  const deleteMutation = useMutation({
+    mutationFn: ({ eventId, registrationId }) =>
+      attendeeService.deleteAttendee(eventId, registrationId),
+    onSuccess: () => {
+      toast.success('Attendee removed');
+      refetch();
+    },
+    onError: (mutationError) => {
+      const message =
+        mutationError?.response?.data?.message || mutationError?.message || 'Failed to delete attendee';
+      toast.error(message);
+    },
   });
 
-  const totalAttendees = attendees.length;
-  const checkedInAttendees = attendees.filter(att => att.status === 'checked-in').length;
-  const notCheckedInAttendees = totalAttendees - checkedInAttendees;
+  const handleDeleteAttendee = (registrationId) => {
+    if (!window.confirm('Remove this attendee from the event?')) {
+      return;
+    }
+    if (!id || !registrationId) {
+      toast.error('Invalid attendee information');
+      return;
+    }
+    deleteMutation.mutate({ eventId: id, registrationId });
+  };
 
-  if (loading) {
+  if (isInitialLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
+
+  const hasData = attendees.length > 0;
 
   return (
     <div className="space-y-6">
@@ -312,7 +544,13 @@ export const ManageAttendeesDetailPage = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Attendees Management</h1>
-            <p className="text-gray-600 mt-1">{selectedEvent.title} - {selectedEvent.date}</p>
+            <p className="text-gray-600 mt-1">
+              {eventInfo.title || '—'}
+              {eventInfo.start_time ? ` • ${formatDateTime(eventInfo.start_time)}` : ''}
+            </p>
+            {eventInfo.location && (
+              <p className="text-gray-500 text-sm mt-1">{eventInfo.location}</p>
+            )}
           </div>
           <button
             onClick={() => navigate('/manage-attendees')}
@@ -325,6 +563,12 @@ export const ManageAttendeesDetailPage = () => {
           </button>
         </div>
       </div>
+
+      {queryErrorMessage && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-4">
+          {queryErrorMessage}
+        </div>
+      )}
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -440,29 +684,6 @@ export const ManageAttendeesDetailPage = () => {
                   </div>
                 </div>
                 
-                {/* Success message */}
-                {scannedResult && (
-                  <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-10">
-                    <div className="bg-white rounded-xl p-6 max-w-sm mx-4 text-center">
-                      <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                      </div>
-                      <h3 className="text-xl font-bold text-gray-900 mb-2">QR Code Scanned!</h3>
-                      <p className="text-gray-600 mb-4 break-all">{scannedResult}</p>
-                      <button
-                        onClick={() => {
-                          setScannedResult(null);
-                          stopScanner();
-                        }}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-                      >
-                        Close
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
             ) : (
               <div 
@@ -497,7 +718,7 @@ export const ManageAttendeesDetailPage = () => {
             )}
             
             {/* Error message */}
-            {error && (
+            {scannerError && (
               <div className="mt-4 bg-red-50 border-2 border-red-200 rounded-xl p-6">
                 <div className="flex items-start gap-4">
                   <div className="flex-shrink-0">
@@ -509,7 +730,7 @@ export const ManageAttendeesDetailPage = () => {
                   </div>
                   <div className="flex-1">
                     <p className="text-red-800 font-bold text-lg mb-2">Camera Access Error</p>
-                    <p className="text-red-700 text-sm mb-4">{error}</p>
+                    <p className="text-red-700 text-sm mb-4">{scannerError}</p>
                     <div className="bg-white rounded-lg p-4 mb-4">
                       <p className="text-sm font-semibold text-gray-800 mb-2">Troubleshooting steps:</p>
                       <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
@@ -531,7 +752,7 @@ export const ManageAttendeesDetailPage = () => {
                       </button>
                       <button
                         onClick={() => {
-                          setError(null);
+                          setScannerError(null);
                           setScanning(false);
                           setShowScanner(false);
                         }}
@@ -556,7 +777,7 @@ export const ManageAttendeesDetailPage = () => {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
-                <span>Stop Scanner</span>
+                Stop
               </button>
             ) : (
               <button
@@ -568,7 +789,7 @@ export const ManageAttendeesDetailPage = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
-                <span>Start Camera Scanner</span>
+                Start Camera Scanner
               </button>
             )}
           </div>
@@ -590,7 +811,7 @@ export const ManageAttendeesDetailPage = () => {
             </label>
             <div className="flex gap-3">
               <div className="flex-1 relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                   </svg>
@@ -600,19 +821,25 @@ export const ManageAttendeesDetailPage = () => {
                   value={ticketCode}
                   onChange={(e) => setTicketCode(e.target.value)}
                   placeholder="Enter ticket code (e.g., TICKET-ABC123)"
-                  className="block w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  className="block w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   onKeyPress={(e) => e.key === 'Enter' && handleManualCheckIn()}
                 />
               </div>
               <button
                 onClick={handleManualCheckIn}
-                disabled={!ticketCode.trim()}
+                disabled={!ticketCode.trim() || checkInMutation.isPending}
                 className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-md hover:shadow-lg flex items-center gap-2 whitespace-nowrap"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Check In
+                {checkInMutation.isPending ? (
+                  <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v2m0 12v2m8-8h-2M6 12H4m13.657-6.343L18 7.757M6 17.657L4.343 19.314m14.314 0L18 16.243M6 6L4.343 4.343" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                )}
+                {checkInMutation.isPending ? 'Processing...' : 'Check In'}
               </button>
             </div>
           </div>
@@ -646,22 +873,18 @@ export const ManageAttendeesDetailPage = () => {
           </div>
           
           <select
-            value={selectedEvent}
-            onChange={(e) => setSelectedEvent(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="all">All Events</option>
-            <option value={selectedEvent.title}>{selectedEvent.title}</option>
-          </select>
-
-          <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="all">All Status</option>
-            <option value="registered">Registered</option>
-            <option value="checked-in">Checked In</option>
+            {statusOptions
+              .filter((status) => status !== 'all')
+              .map((status) => (
+                <option key={status} value={status}>
+                  {renderStatusLabel(status)}
+                </option>
+              ))}
           </select>
         </div>
 
@@ -671,58 +894,48 @@ export const ManageAttendeesDetailPage = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Event</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registration Date</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registered At</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ticket Code</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registration ID</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredAttendees.map((attendee) => (
-                <tr key={attendee.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{attendee.name}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-600">
-                      <div>{attendee.email}</div>
-                      <div>{attendee.phone}</div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-600">{attendee.event}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-600">{attendee.registrationDate}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(attendee.status)}`}>
-                      {attendee.status === 'checked-in' ? 'Checked In' : 'Registered'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-600">{attendee.ticketCode}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex gap-2">
+              {hasData ? (
+                filteredAttendees.map((attendee) => (
+                  <tr key={attendee.registration_id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">{attendee.name || '—'}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{attendee.email || '—'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{attendee.contact || '—'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{formatDateTime(attendee.registered_at)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(attendee.status)}`}>
+                        {renderStatusLabel(attendee.status)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{attendee.registration_id}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <button
-                        onClick={() => handleViewAttendee(attendee.id)}
-                        className="text-blue-600 hover:text-blue-900 text-sm font-medium"
+                        onClick={() => handleDeleteAttendee(attendee.registration_id)}
+                        disabled={deleteMutation.isPending}
+                        className="text-red-600 hover:text-red-800 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        View
+                        {deleteMutation.isPending ? 'Removing...' : 'Remove'}
                       </button>
-                      <button
-                        onClick={() => handleRemoveAttendee(attendee.id)}
-                        className="text-red-600 hover:text-red-900 text-sm font-medium"
-                      >
-                        Remove
-                      </button>
-                    </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={7} className="px-6 py-8 text-center text-sm text-gray-500">
+                    {isFetching ? 'Loading attendees...' : 'No attendees found for this event.'}
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

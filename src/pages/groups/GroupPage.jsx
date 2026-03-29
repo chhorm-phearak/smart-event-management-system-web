@@ -11,11 +11,26 @@ const DEFAULT_GROUP_IMAGE = 'https://images.unsplash.com/photo-1526379095098-d40
 // Normalize API group to UI shape (accept common API field names)
 const normalizeGroup = (g) => {
   if (!g || typeof g !== 'object') return null;
+  
+  // Handle image URL - if it's a relative path, add base URL
+  let imageUrl = DEFAULT_GROUP_IMAGE;
+  if (g.image_url) {
+    imageUrl = g.image_url;
+    // If it's a relative path, add the base URL
+    if (imageUrl.startsWith('/uploads/')) {
+      imageUrl = `${window.location.origin}${imageUrl}`;
+    }
+  } else if (g.image) {
+    imageUrl = g.image;
+  } else if (g.avatar) {
+    imageUrl = g.avatar;
+  }
+  
   return {
     id: g.id ?? g.group_id ?? g.groupId,
     name: (g.name ?? g.group_name ?? g.groupName ?? '').toString(),
     description: (g.description ?? g.group_description ?? g.groupDescription ?? '').toString(),
-    image: g.image ?? g.image_url ?? g.avatar ?? DEFAULT_GROUP_IMAGE,
+    image: imageUrl,
     members: g.members ?? g.member_count ?? g.memberCount ?? 0,
     events: g.events ?? g.event_count ?? g.eventCount ?? 0,
     isJoined: g.isJoined ?? g.is_joined ?? false,
@@ -69,11 +84,15 @@ export const GroupPage = () => {
   const [invitations, setInvitations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [createLoading, setCreateLoading] = useState(false);
+  const [uploadStep, setUploadStep] = useState(''); // 'uploading' | 'creating' | ''
   const [error, setError] = useState(null);
 
   // Form state for creating group
   const [groupName, setGroupName] = useState('');
   const [groupDescription, setGroupDescription] = useState('');
+  const [groupImage, setGroupImage] = useState(null);
+  const [groupImagePreview, setGroupImagePreview] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Invite User states
   const [inviteSubTab, setInviteSubTab] = useState('user');
@@ -223,19 +242,155 @@ export const GroupPage = () => {
     try {
       setCreateLoading(true);
       setError(null);
-      await groupService.createGroup({
+      
+      let imageUrl = null;
+      
+      // Step 1: Upload image if one is selected
+      if (groupImage) {
+        console.log('Starting image upload...', groupImage);
+        setUploadStep('uploading');
+        const imageFormData = new FormData();
+        imageFormData.append('file', groupImage);
+        
+        try {
+          const uploadResponse = await api.post('/upload/single', imageFormData, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+          });
+          
+          console.log('Upload response:', uploadResponse.data);
+          console.log('Upload response structure:', JSON.stringify(uploadResponse.data, null, 2));
+          
+          if (uploadResponse.data && uploadResponse.data.data && uploadResponse.data.data.file) {
+            imageUrl = uploadResponse.data.data.file.file_url;
+            console.log('Extracted image URL:', imageUrl);
+          } else {
+            console.error('Unexpected upload response structure:', uploadResponse.data);
+            throw new Error('Invalid upload response structure');
+          }
+        } catch (uploadError) {
+          console.error('Upload failed:', uploadError);
+          console.error('Upload error response:', uploadError.response?.data);
+          throw uploadError;
+        }
+      } else {
+        console.log('No image selected for upload');
+      }
+      
+      // Step 2: Create group with image URL
+      setUploadStep('creating');
+      const groupData = {
         name: groupName.trim(),
         description: groupDescription.trim(),
-      });
+      };
+      
+      if (imageUrl) {
+        groupData.image_url = imageUrl;
+        console.log('Including image_url in group data:', imageUrl);
+      } else {
+        console.log('No image URL to include in group data');
+        // TEMPORARY: For testing, add a placeholder image URL
+        // groupData.image_url = 'https://via.placeholder.com/400x200.png?text=Test+Image';
+      }
+      
+      console.log('Final group data being sent:', groupData);
+      
+      const createResponse = await groupService.createGroup(groupData);
+      console.log('Group creation response:', createResponse.data);
+      
+      // Reset form
       setGroupName('');
       setGroupDescription('');
+      setGroupImage(null);
+      setGroupImagePreview(null);
+      setUploadStep('');
       setShowCreateModal(false);
       await fetchGroupsData();
     } catch (err) {
       console.error('Error creating group:', err);
+      console.error('Error response:', err.response?.data);
       setError(err.response?.data?.message || err.message || 'Failed to create group');
+      setUploadStep('');
     } finally {
       setCreateLoading(false);
+    }
+  };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setError('Please select an image file');
+        return;
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Image size should be less than 5MB');
+        return;
+      }
+      
+      setGroupImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setGroupImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setGroupImage(null);
+    setGroupImagePreview(null);
+  };
+
+  const resetCreateGroupForm = () => {
+    setGroupName('');
+    setGroupDescription('');
+    setGroupImage(null);
+    setGroupImagePreview(null);
+    setUploadStep('');
+    setError(null);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      const file = files[0];
+      
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setError('Please select an image file');
+        return;
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Image size should be less than 5MB');
+        return;
+      }
+      
+      setGroupImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setGroupImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -1287,7 +1442,10 @@ export const GroupPage = () => {
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-gray-900">Create New Group</h2>
               <button
-                onClick={() => setShowCreateModal(false)}
+                onClick={() => {
+                  setShowCreateModal(false);
+                  resetCreateGroupForm();
+                }}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1297,6 +1455,68 @@ export const GroupPage = () => {
             </div>
 
             <div className="space-y-4">
+              {/* Group Image Upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Group Image</label>
+                <div className="flex items-center space-x-4">
+                  {groupImagePreview ? (
+                    <div className="relative">
+                      <img
+                        src={groupImagePreview}
+                        alt="Group preview"
+                        className="w-20 h-20 rounded-lg object-cover border-2 border-gray-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleRemoveImage}
+                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      className={`w-20 h-20 rounded-lg border-2 border-dashed flex items-center justify-center transition-colors ${
+                        isDragging 
+                          ? 'border-blue-500 bg-blue-50' 
+                          : 'border-gray-300 bg-gray-100'
+                      }`}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                    >
+                      <svg className={`w-8 h-8 ${isDragging ? 'text-blue-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <label
+                      htmlFor="group-image-upload"
+                      className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    >
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      {groupImagePreview ? 'Change Image' : 'Upload Image'}
+                    </label>
+                    <input
+                      id="group-image-upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="hidden"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">JPG, PNG, GIF up to 5MB</p>
+                    {!groupImagePreview && (
+                      <p className="text-xs text-blue-500 mt-1">or drag and drop an image here</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Group Name</label>
                 <input
@@ -1322,7 +1542,10 @@ export const GroupPage = () => {
 
             <div className="flex gap-3 mt-6">
               <button
-                onClick={() => setShowCreateModal(false)}
+                onClick={() => {
+                  setShowCreateModal(false);
+                  resetCreateGroupForm();
+                }}
                 className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 Cancel
@@ -1332,7 +1555,9 @@ export const GroupPage = () => {
                 disabled={!groupName.trim() || !groupDescription.trim() || createLoading}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {createLoading ? 'Creating...' : 'Create Group'}
+                {uploadStep === 'uploading' ? 'Uploading Image...' : 
+                 uploadStep === 'creating' ? 'Creating Group...' : 
+                 createLoading ? 'Creating...' : 'Create Group'}
               </button>
             </div>
           </div>

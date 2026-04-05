@@ -2,6 +2,21 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { organizationService } from '@/services';
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  Users,
+  Plus,
+  TrendingUp,
+  CalendarDays,
+  History,
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  Sparkles,
+  LayoutDashboard,
+} from 'lucide-react';
 
 export const DashboardPage = () => {
   const navigate = useNavigate();
@@ -106,244 +121,287 @@ export const DashboardPage = () => {
     });
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-8">
-      {/* Welcome Section */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl shadow-lg p-8 text-white">
-        <div>
-          <h1 className="text-4xl font-bold mb-2">
-            Welcome back, {getUserDisplayName()}!
-          </h1>
-          <p className="text-blue-100 text-lg">
-            Manage your events and track your success
-          </p>
-        </div>
-      </div>
-
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Total Events Card */}
-        <div className="bg-white rounded-xl shadow-md border border-gray-100 p-6 hover:shadow-lg transition-all duration-300 group">
-          <div className="flex items-start justify-between mb-4">
-            <div className="p-3 bg-green-100 rounded-xl group-hover:scale-110 transition-transform duration-300">
-              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
+    <div className="min-h-screen bg-gray-50">
+      <div className="px-4 sm:px-6 py-8">
+        
+        {/* Welcome Banner */}
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 mb-8 relative overflow-hidden">
+          <div className="absolute inset-0 bg-grid-white/10" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'30\' height=\'30\' viewBox=\'0 0 30 30\' fill=\'none\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M1.5 0V30M0 1.5H30\' stroke=\'white\' stroke-opacity=\'0.1\'/%3E%3C/svg%3E")' }} />
+          <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+            <div className="text-white">
+              <p className="text-blue-200 text-sm font-medium mb-2">Dashboard Overview</p>
+              <h1 className="text-3xl md:text-4xl font-bold mb-2">
+                Welcome back, {getUserDisplayName()}!
+              </h1>
+              <p className="text-blue-100 max-w-md">
+                Here's what's happening with your events today. Keep up the great work!
+              </p>
             </div>
-            <div className="px-3 py-1 bg-green-50 rounded-full">
-              <span className="text-xs font-semibold text-green-700">Active</span>
+            <div className="flex gap-3">
+              <button
+                onClick={() => navigate('/create-event')}
+                className="px-6 py-3 bg-white text-blue-600 font-semibold rounded-xl hover:bg-blue-50 transition-all flex items-center gap-2 shadow-lg"
+              >
+                <Plus className="w-5 h-5" />
+                Create Event
+              </button>
+              <button
+                onClick={() => navigate('/manage-events')}
+                className="px-6 py-3 bg-white/20 text-white font-semibold rounded-xl hover:bg-white/30 transition-all backdrop-blur-sm"
+              >
+                Manage All
+              </button>
             </div>
           </div>
-          <div>
-            <p className="text-sm font-medium text-gray-600 mb-1">Total Events</p>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {/* Total Events */}
+          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all group">
+            <div className="flex items-start justify-between mb-4">
+              <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg shadow-blue-500/30 group-hover:scale-110 transition-transform">
+                <CalendarDays className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex items-center gap-1 text-emerald-600 text-sm font-medium">
+                <TrendingUp className="w-4 h-4" />
+                <span>Active</span>
+              </div>
+            </div>
             <p className="text-3xl font-bold text-gray-900 mb-1">{stats.totalEvents}</p>
-            <p className="text-xs text-gray-500">All your events</p>
+            <p className="text-gray-500">Total Events</p>
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-400">All time</span>
+                <span className="text-blue-600 font-medium cursor-pointer hover:underline" onClick={() => navigate('/manage-events')}>View all →</span>
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* Upcoming Events Card */}
-        <div className="bg-white rounded-xl shadow-md border border-gray-100 p-6 hover:shadow-lg transition-all duration-300 group">
-          <div className="flex items-start justify-between mb-4">
-            <div className="p-3 bg-blue-100 rounded-xl group-hover:scale-110 transition-transform duration-300">
-              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-              </svg>
+          {/* Upcoming Events */}
+          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all group">
+            <div className="flex items-start justify-between mb-4">
+              <div className="p-3 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl shadow-lg shadow-emerald-500/30 group-hover:scale-110 transition-transform">
+                <TrendingUp className="w-6 h-6 text-white" />
+              </div>
+              <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full">Live</span>
             </div>
-            <div className="px-3 py-1 bg-blue-50 rounded-full">
-              <span className="text-xs font-semibold text-blue-700">Upcoming</span>
-            </div>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-600 mb-1">Upcoming Events</p>
             <p className="text-3xl font-bold text-gray-900 mb-1">{stats.upcomingEvents}</p>
-            <p className="text-xs text-gray-500">Currently running</p>
+            <p className="text-gray-500">Upcoming Events</p>
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="w-full bg-gray-100 rounded-full h-2">
+                <div 
+                  className="bg-emerald-500 h-2 rounded-full transition-all" 
+                  style={{ width: `${stats.totalEvents > 0 ? (stats.upcomingEvents / stats.totalEvents) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* Past Events Card */}
-        <div className="bg-white rounded-xl shadow-md border border-gray-100 p-6 hover:shadow-lg transition-all duration-300 group">
-          <div className="flex items-start justify-between mb-4">
-            <div className="p-3 bg-orange-100 rounded-xl group-hover:scale-110 transition-transform duration-300">
-              <svg className="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+          {/* Past Events */}
+          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all group">
+            <div className="flex items-start justify-between mb-4">
+              <div className="p-3 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-lg shadow-orange-500/30 group-hover:scale-110 transition-transform">
+                <History className="w-6 h-6 text-white" />
+              </div>
+              <span className="px-2.5 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">Done</span>
             </div>
-            <div className="px-3 py-1 bg-orange-50 rounded-full">
-              <span className="text-xs font-semibold text-orange-700">Completed</span>
-            </div>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-600 mb-1">Past Events</p>
             <p className="text-3xl font-bold text-gray-900 mb-1">{stats.pastEvents}</p>
-            <p className="text-xs text-gray-500">Completed events</p>
+            <p className="text-gray-500">Completed Events</p>
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="w-full bg-gray-100 rounded-full h-2">
+                <div 
+                  className="bg-orange-500 h-2 rounded-full transition-all" 
+                  style={{ width: `${stats.totalEvents > 0 ? (stats.pastEvents / stats.totalEvents) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* Total Attendees Card */}
-        <div className="bg-white rounded-xl shadow-md border border-gray-100 p-6 hover:shadow-lg transition-all duration-300 group">
-          <div className="flex items-start justify-between mb-4">
-            <div className="p-3 bg-purple-100 rounded-xl group-hover:scale-110 transition-transform duration-300">
-              <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-              </svg>
+          {/* Total Attendees */}
+          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all group">
+            <div className="flex items-start justify-between mb-4">
+              <div className="p-3 bg-gradient-to-br from-violet-500 to-violet-600 rounded-xl shadow-lg shadow-violet-500/30 group-hover:scale-110 transition-transform">
+                <Users className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex items-center gap-1 text-violet-600 text-sm font-medium">
+                <Sparkles className="w-4 h-4" />
+                <span>Growing</span>
+              </div>
             </div>
-            <div className="px-3 py-1 bg-purple-50 rounded-full">
-              <span className="text-xs font-semibold text-purple-700">Attendees</span>
-            </div>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-600 mb-1">Total Attendees</p>
             <p className="text-3xl font-bold text-gray-900 mb-1">{stats.totalAttendees}</p>
-            <p className="text-xs text-gray-500">Across all events</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Recent Events Section */}
-      <div className="bg-white rounded-xl shadow-md border border-gray-100 p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-1">Recent Events</h2>
-            <p className="text-gray-600 text-sm">Your latest event activities</p>
-          </div>
-          <button
-            onClick={() => navigate('/create-event')}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2 whitespace-nowrap"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Create Event
-          </button>
-        </div>
-
-        {recentEvents.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
+            <p className="text-gray-500">Total Attendees</p>
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-400">Avg per event</span>
+                <span className="text-violet-600 font-bold">{stats.totalEvents > 0 ? Math.round(stats.totalAttendees / stats.totalEvents) : 0}</span>
+              </div>
             </div>
-            <p className="text-gray-600 mb-2">No events yet</p>
-            <p className="text-gray-500 text-sm mb-4">Create your first event to get started</p>
-            <button
-              onClick={() => navigate('/create-event')}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors"
-            >
-              Create Your First Event
-            </button>
           </div>
-        ) : (
-          <>
-            <div className="space-y-4">
-              {recentEvents.map((event) => (
-                <div
-                  key={event.id}
-                  className="bg-gray-50 rounded-xl p-6 border border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer"
-                  onClick={() => navigate(`/events/${event.id}`)}
-                >
-                  <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                    {/* Event Image */}
-                    <div className="w-full lg:w-32 h-32 rounded-lg overflow-hidden flex-shrink-0">
+        </div>
+
+        {/* Recent Events Section */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Recent Events</h2>
+              <p className="text-sm text-gray-500 mt-0.5">Your latest event activities and performance</p>
+            </div>
+            <button
+                onClick={fetchDashboardData}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
+                title="Refresh"
+              >
+                <History className="w-5 h-5" />
+              </button>
+          </div>
+
+          {loading ? (
+            <div className="p-6 space-y-4">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-4 animate-pulse">
+                  <div className="w-20 h-20 bg-gray-200 rounded-xl" />
+                  <div className="flex-1 space-y-3">
+                    <div className="h-5 bg-gray-200 rounded w-1/3" />
+                    <div className="h-4 bg-gray-100 rounded w-1/2" />
+                  </div>
+                  <div className="h-10 bg-gray-200 rounded-lg w-24" />
+                </div>
+              ))}
+            </div>
+          ) : recentEvents.length === 0 ? (
+            <div className="p-16 text-center">
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <CalendarDays className="w-10 h-10 text-blue-500" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">No events yet</h3>
+              <p className="text-gray-500 mb-6 max-w-sm mx-auto">Create your first event and start building your community</p>
+              <button
+                onClick={() => navigate('/create-event')}
+                className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all inline-flex items-center gap-2 shadow-lg shadow-blue-600/20"
+              >
+                <Plus className="w-5 h-5" />
+                Create Your First Event
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Event List */}
+              <div className="divide-y divide-gray-100">
+                {recentEvents.map((event, index) => (
+                  <div
+                    key={event.id}
+                    className="flex flex-col lg:flex-row lg:items-center gap-5 p-6 hover:bg-gray-50 transition-colors cursor-pointer group"
+                    onClick={() => navigate(`/events/${event.id}`, { state: { fromDashboard: true } })}
+                  >
+                    {/* Event Image - Larger */}
+                    <div className="relative w-full lg:w-44 h-44 lg:h-32 rounded-2xl overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-100 flex-shrink-0">
                       <img
                         src={event.image}
                         alt={event.title}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400&h=200&fit=crop';
-                        }}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                        onError={(e) => { e.target.style.display = 'none'; }}
                       />
+                      <div className="absolute top-3 left-3 px-2.5 py-1 bg-white/90 backdrop-blur-sm rounded-lg text-xs font-bold text-gray-700">
+                        #{index + 1}
+                      </div>
                     </div>
 
                     {/* Event Details */}
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-xl font-bold text-gray-900 mb-3">{event.title}</h3>
-                      <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 mb-4">
-                        <div className="flex items-center gap-2">
-                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          <span>{event.date}</span>
+                      <div className="flex items-start justify-between gap-4 mb-3">
+                        <h3 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors text-xl line-clamp-1">
+                          {event.title}
+                        </h3>
+                        <span className="flex-shrink-0 px-3 py-1.5 bg-blue-100 text-blue-700 text-xs font-bold rounded-full">
+                          {event.category}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm text-gray-500">
+                        <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                          <Calendar className="w-4 h-4 text-blue-500" />
+                          <span className="font-medium">{event.date}</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          <span>{event.time}</span>
+                        <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                          <Clock className="w-4 h-4 text-emerald-500" />
+                          <span className="font-medium">{event.time}</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
-                          <span className="truncate max-w-[200px]">{event.location}</span>
+                        <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                          <MapPin className="w-4 h-4 text-rose-500" />
+                          <span className="truncate font-medium">{event.location}</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                          </svg>
-                          <span>Max {event.maxAttendees}</span>
+                        <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                          <Users className="w-4 h-4 text-violet-500" />
+                          <span className="font-medium">{event.maxAttendees} capacity</span>
                         </div>
                       </div>
                     </div>
 
-                    {/* View Detail Button */}
-                    <div className="flex flex-col items-end gap-3 flex-shrink-0">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/events/${event.id}`);
-                        }}
-                        className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                      >
-                        <span>View Detail</span>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </button>
+                    {/* Action Button */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); navigate(`/events/${event.id}`, { state: { fromDashboard: true } }); }}
+                      className="w-full lg:w-auto px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-sm"
+                    >
+                      View Details
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Pagination */}
+              {pagination.totalPages > 1 && (
+                <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <p className="text-sm text-gray-500">
+                    Showing <span className="font-semibold text-gray-700">{((pagination.page - 1) * pagination.limit) + 1}</span> to <span className="font-semibold text-gray-700">{Math.min(pagination.page * pagination.limit, pagination.total)}</span> of <span className="font-semibold text-gray-700">{pagination.total}</span> events
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+                      disabled={pagination.page === 1}
+                      className="px-4 py-2 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-sm font-medium flex items-center gap-1"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      Previous
+                    </button>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(3, pagination.totalPages) }, (_, i) => {
+                        let page = i + 1;
+                        if (pagination.totalPages > 3) {
+                          if (pagination.page <= 2) page = i + 1;
+                          else if (pagination.page >= pagination.totalPages - 1) page = pagination.totalPages - 2 + i;
+                          else page = pagination.page - 1 + i;
+                        }
+                        return (
+                          <button
+                            key={page}
+                            onClick={() => setPagination(prev => ({ ...prev, page }))}
+                            className={`w-10 h-10 rounded-lg font-semibold text-sm transition-all ${
+                              pagination.page === page
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        );
+                      })}
                     </div>
+                    <button
+                      onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+                      disabled={pagination.page >= pagination.totalPages}
+                      className="px-4 py-2 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-sm font-medium flex items-center gap-1"
+                    >
+                      Next
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
-              ))}
-            </div>
-
-            {/* Pagination */}
-            {pagination.totalPages > 1 && (
-              <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-200">
-                <p className="text-sm text-gray-600">
-                  Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} events
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
-                    disabled={pagination.page === 1}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    Previous
-                  </button>
-                  <span className="px-4 py-2 text-sm text-gray-600">
-                    Page {pagination.page} of {pagination.totalPages}
-                  </span>
-                  <button
-                    onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
-                    disabled={pagination.page >= pagination.totalPages}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            )}
-          </>
-        )}
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

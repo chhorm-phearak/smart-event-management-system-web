@@ -1,9 +1,41 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { eventService } from '@/services';
+import {
+  Search,
+  Calendar,
+  Clock,
+  MapPin,
+  Users,
+  Plus,
+  QrCode,
+  X,
+  Download,
+  ChevronLeft,
+  ChevronRight,
+  Sparkles,
+  ArrowRight,
+  Rocket,
+  Target,
+  Globe,
+  Heart,
+  CalendarDays,
+  TrendingUp,
+} from 'lucide-react';
 
+// Custom hook for debounced value
+const useDebounce = (value, delay = 300) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debouncedValue;
+};
+
+// Format utilities
 const formatEventDate = (isoString) => {
   if (!isoString) return '';
   return new Date(isoString).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' });
@@ -11,9 +43,183 @@ const formatEventDate = (isoString) => {
 
 const formatEventTime = (isoString) => {
   if (!isoString) return '';
-  const date = new Date(isoString);
-  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return new Date(isoString).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 };
+
+// Category styles
+const CATEGORY_STYLES = {
+  technology: 'bg-violet-100 text-violet-700 border-violet-200',
+  business: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  education: 'bg-blue-100 text-blue-700 border-blue-200',
+  entertainment: 'bg-pink-100 text-pink-700 border-pink-200',
+  sports: 'bg-orange-100 text-orange-700 border-orange-200',
+  other: 'bg-gray-100 text-gray-700 border-gray-200',
+};
+
+const getCategoryStyle = (category) => CATEGORY_STYLES[category?.toLowerCase()] || CATEGORY_STYLES.other;
+
+// Clean Event Card - Larger Size
+const EventCard = ({ event, onNavigate, onShowQR }) => {
+  const categoryStyle = getCategoryStyle(event.category);
+  
+  return (
+    <div 
+      className="group bg-white rounded-3xl overflow-hidden border border-gray-200 hover:border-blue-300 hover:shadow-xl transition-all duration-300 cursor-pointer"
+      onClick={() => onNavigate(event.id)}
+    >
+      {/* Image - Larger */}
+      <div className="relative h-52 bg-gradient-to-br from-blue-100 to-indigo-100 overflow-hidden">
+        <img
+          src={event.image}
+          alt={event.title}
+          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          onError={(e) => { e.target.style.display = 'none'; }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+        
+        {/* Category badge */}
+        <div className="absolute top-4 left-4">
+          <span className={`px-3 py-1.5 rounded-xl text-xs font-bold border backdrop-blur-sm bg-white/90 ${categoryStyle}`}>
+            {event.category}
+          </span>
+        </div>
+        
+        {/* QR button on hover */}
+        {event.qrcode && (
+          <button 
+            onClick={(e) => { e.stopPropagation(); onShowQR(event); }}
+            className="absolute top-4 right-4 p-2.5 bg-white/90 backdrop-blur-sm rounded-xl opacity-0 group-hover:opacity-100 transition-all shadow-sm hover:bg-white"
+          >
+            <QrCode className="w-5 h-5 text-gray-600" />
+          </button>
+        )}
+        
+        {/* Date badge on image */}
+        <div className="absolute bottom-4 left-4">
+          <div className="px-4 py-2 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg">
+            <div className="text-xl font-bold text-gray-900 leading-none">{new Date(event.start_time).getDate()}</div>
+            <div className="text-xs font-semibold text-gray-500 uppercase">{new Date(event.start_time).toLocaleDateString('en-US', { month: 'short' })}</div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Content - More padding */}
+      <div className="p-5">
+        <h3 className="font-bold text-gray-900 text-lg mb-4 line-clamp-2 group-hover:text-blue-600 transition-colors leading-snug">
+          {event.title}
+        </h3>
+        
+        <div className="space-y-3 text-sm text-gray-500 mb-5">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-50 rounded-lg">
+              <Clock className="w-4 h-4 text-blue-500" />
+            </div>
+            <span className="font-medium">{event.time}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-rose-50 rounded-lg">
+              <MapPin className="w-4 h-4 text-rose-500" />
+            </div>
+            <span className="truncate font-medium">{event.location}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-emerald-50 rounded-lg">
+              <Users className="w-4 h-4 text-emerald-500" />
+            </div>
+            <span className="font-medium">{event.maxAttendees} attendees</span>
+          </div>
+        </div>
+        
+        <button 
+          className="w-full py-3.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+          onClick={(e) => { e.stopPropagation(); onNavigate(event.id); }}
+        >
+          View Details
+          <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Skeleton - Larger
+const EventCardSkeleton = () => (
+  <div className="bg-white rounded-3xl overflow-hidden border border-gray-200 animate-pulse">
+    <div className="h-52 bg-gray-200" />
+    <div className="p-5 space-y-4">
+      <div className="h-6 bg-gray-200 rounded-lg w-3/4" />
+      <div className="space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gray-100 rounded-lg" />
+          <div className="h-4 bg-gray-100 rounded w-24" />
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gray-100 rounded-lg" />
+          <div className="h-4 bg-gray-100 rounded w-32" />
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gray-100 rounded-lg" />
+          <div className="h-4 bg-gray-100 rounded w-20" />
+        </div>
+      </div>
+      <div className="h-12 bg-gray-200 rounded-xl w-full mt-2" />
+    </div>
+  </div>
+);
+
+// QR Modal
+const QRCodeModal = ({ selectedQRCode, onClose, onDownload }) => {
+  if (!selectedQRCode) return null;
+  const qrSrc = selectedQRCode.qrcode.startsWith('data:')
+    ? selectedQRCode.qrcode
+    : `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}${selectedQRCode.qrcode}`;
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <h3 className="text-xl font-bold text-gray-900 line-clamp-1">{selectedQRCode.title}</h3>
+            <p className="text-sm text-gray-500 mt-1">Scan to access event</p>
+          </div>
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="p-6 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl mb-6 flex justify-center">
+          <div className="p-4 bg-white rounded-2xl shadow-lg">
+            <img src={qrSrc} alt="QR Code" className="w-48 h-48 object-contain" onError={(e) => { e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48L3N2Zz4='; }} />
+          </div>
+        </div>
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 px-5 py-3 border-2 border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold">Close</button>
+          <button onClick={() => onDownload(selectedQRCode.qrcode, selectedQRCode.title)} className="flex-1 px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25">
+            <Download className="w-4 h-4" /> Download
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Category Pill
+const CategoryPill = ({ category, active, onClick }) => (
+  <button
+    onClick={onClick}
+    className={`px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
+      active 
+        ? 'bg-blue-600 text-white' 
+        : 'bg-white border border-gray-200 text-gray-600 hover:border-blue-300 hover:bg-blue-50'
+    }`}
+  >
+    {category}
+  </button>
+);
+
+// Constants
+const CATEGORIES = ['All', 'Technology', 'Business', 'Education', 'Entertainment', 'Sports'];
+const DATE_FILTERS = ['All', 'Today', 'This Week', 'This Month', 'Upcoming'];
+const ITEMS_PER_PAGE = 12;
 
 export const AllEventsPage = () => {
   const navigate = useNavigate();
@@ -21,29 +227,48 @@ export const AllEventsPage = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedDate, setSelectedDate] = useState('all');
   const [selectedQRCode, setSelectedQRCode] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // Mock categories - replace with actual categories from API
-  const categories = ['All Category', 'Technology', 'Business', 'Education', 'Entertainment', 'Sports'];
+  const debouncedSearch = useDebounce(searchQuery, 300);
 
-  // Mock date filters
-  const dateFilters = ['All Date', 'Today', 'This Week', 'This Month', 'Upcoming'];
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, selectedCategory, selectedDate]);
 
   const {
     data: rawEvents = [],
     isLoading: loading,
     error,
+    refetch,
   } = useQuery({
-    queryKey: ['events', { category: selectedCategory !== 'all' ? selectedCategory : undefined, search: searchQuery || undefined }],
+    queryKey: ['events', { category: selectedCategory !== 'all' ? selectedCategory : undefined, search: debouncedSearch || undefined }],
     queryFn: async () => {
       const res = await eventService.getAllEvents({
         category: selectedCategory !== 'all' ? selectedCategory : undefined,
-        search: searchQuery || undefined,
+        search: debouncedSearch || undefined,
       });
       return res?.data?.events ?? res?.events ?? [];
     },
   });
 
-  const events = useMemo(() => {
+  const hasActiveFilters = searchQuery || selectedCategory !== 'all' || selectedDate !== 'all';
+
+  const clearFilters = useCallback(() => {
+    setSearchQuery('');
+    setSelectedCategory('all');
+    setSelectedDate('all');
+    setCurrentPage(1);
+  }, []);
+
+  const handleNavigate = useCallback((eventId) => {
+    navigate(`/events/${eventId}`);
+  }, [navigate]);
+
+  const handleShowQR = useCallback((event) => {
+    setSelectedQRCode({ title: event.title, qrcode: event.qrcode });
+  }, []);
+
+  const { events, totalPages, totalCount } = useMemo(() => {
     const mapped = rawEvents.map((e) => ({
       id: e.id,
       title: e.title,
@@ -52,43 +277,57 @@ export const AllEventsPage = () => {
       location: e.location || e.full_address || '—',
       maxAttendees: e.capacity ?? 0,
       category: e.category || 'Other',
-      image: e.images?.[0]?.image_url || 'https://via.placeholder.com/400x200?text=Event',
+      image: e.images?.[0]?.image_url || '',
       qrcode: (e.qr_image_url || e.qrcode) ?? e.qr_code ?? '',
       start_time: e.start_time,
     }));
 
     let filtered = mapped;
-    if (searchQuery) {
+
+    if (debouncedSearch) {
+      const searchLower = debouncedSearch.toLowerCase();
       filtered = filtered.filter((event) =>
-        event.title.toLowerCase().includes(searchQuery.toLowerCase())
+        event.title.toLowerCase().includes(searchLower) ||
+        event.location.toLowerCase().includes(searchLower) ||
+        event.category.toLowerCase().includes(searchLower)
       );
     }
+
     if (selectedCategory !== 'all') {
       filtered = filtered.filter((event) =>
         event.category.toLowerCase() === selectedCategory.toLowerCase()
       );
     }
+
     if (selectedDate !== 'all') {
       const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      
       filtered = filtered.filter((event) => {
         const eventDate = new Date(event.start_time);
-        if (selectedDate === 'today') {
-          return eventDate.toDateString() === now.toDateString();
+        switch (selectedDate) {
+          case 'today': return eventDate.toDateString() === now.toDateString();
+          case 'this week': {
+            const weekEnd = new Date(now);
+            weekEnd.setDate(weekEnd.getDate() + 7);
+            return eventDate >= now && eventDate <= weekEnd;
+          }
+          case 'this month': return eventDate.getMonth() === now.getMonth() && eventDate.getFullYear() === now.getFullYear();
+          case 'upcoming': return eventDate >= now;
+          default: return true;
         }
-        if (selectedDate === 'this week') {
-          const weekEnd = new Date(now);
-          weekEnd.setDate(weekEnd.getDate() + 7);
-          return eventDate >= now && eventDate <= weekEnd;
-        }
-        if (selectedDate === 'this month') {
-          return eventDate.getMonth() === now.getMonth() && eventDate.getFullYear() === now.getFullYear();
-        }
-        if (selectedDate === 'upcoming') return eventDate >= now;
-        return true;
       });
     }
-    return filtered;
-  }, [rawEvents, searchQuery, selectedCategory, selectedDate]);
+
+    filtered.sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+
+    const totalCount = filtered.length;
+    const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const paginatedEvents = filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+    return { events: paginatedEvents, totalPages, totalCount };
+  }, [rawEvents, debouncedSearch, selectedCategory, selectedDate, currentPage]);
 
   const handleDownloadQr = async (qrCode, title) => {
     if (!qrCode) {
@@ -164,424 +403,270 @@ export const AllEventsPage = () => {
   };
 
   return (
-    <div className="w-full">
-      {/* Page Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">ALL Events</h1>
-      </div>
+    <div className="min-h-screen bg-gray-50">
+      <div className="px-4 sm:px-6 py-8">
+        
+        {/* Hero Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
+          {/* Main Welcome Card - Takes 2 columns */}
+          <div className="lg:col-span-2 bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 rounded-3xl p-10 md:p-12 text-white relative overflow-hidden min-h-[320px] flex flex-col justify-between">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/3" />
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/3" />
+            <div className="absolute top-1/2 right-1/4 w-32 h-32 bg-blue-400/20 rounded-full blur-2xl" />
+            
+            <div className="relative z-10">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/15 backdrop-blur-sm rounded-full mb-6">
+                <Sparkles className="w-4 h-4" />
+                <span className="text-sm font-medium">Discover Events</span>
+              </div>
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4 leading-tight">
+                Find Amazing<br />Events Near You
+              </h1>
+              <p className="text-blue-100 text-lg mb-8 max-w-lg">
+                Connect with people, learn new things, and create unforgettable memories at events happening around you.
+              </p>
+            </div>
+            
+            <div className="relative z-10 flex flex-wrap items-center gap-4">
+              <button
+                onClick={() => navigate('/create-event')}
+                className="px-8 py-4 bg-white text-blue-600 font-semibold rounded-2xl hover:bg-blue-50 transition-all flex items-center gap-2 shadow-lg shadow-blue-900/20"
+              >
+                <Plus className="w-5 h-5" />
+                Create Event
+              </button>
+              <div className="flex items-center gap-3 text-white/80">
+                <div className="flex -space-x-2">
+                  <div className="w-10 h-10 rounded-full bg-blue-400 border-2 border-white/30" />
+                  <div className="w-10 h-10 rounded-full bg-indigo-400 border-2 border-white/30" />
+                  <div className="w-10 h-10 rounded-full bg-purple-400 border-2 border-white/30" />
+                </div>
+                <span className="text-sm">Join {totalCount}+ events</span>
+              </div>
+            </div>
+          </div>
 
-      {/* Browse Events Section */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        {/* Section Header with Create Event Button */}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Browse Events</h2>
-          <button
-            onClick={() => navigate('/create-event')}
-            className="px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
-            Create Event
-          </button>
+          {/* Right Column - Stats & Action */}
+          <div className="flex flex-col gap-6">
+            {/* Stats Card */}
+            <div className="bg-white rounded-3xl p-8 border border-gray-200 flex-1">
+              <div className="p-4 bg-emerald-100 rounded-2xl w-fit mb-5">
+                <TrendingUp className="w-7 h-7 text-emerald-600" />
+              </div>
+              <div className="text-5xl font-bold text-gray-900 mb-2">1000+</div>
+              <p className="text-gray-500 text-lg">Events Hosted</p>
+              <p className="text-emerald-600 mt-3 font-medium flex items-center gap-2">
+                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                And growing every day
+              </p>
+            </div>
+
+            {/* Quick Action Card */}
+            <div className="bg-gradient-to-br from-amber-400 to-orange-500 rounded-3xl p-8 text-white flex-1">
+              <div className="p-4 bg-white/20 rounded-2xl w-fit mb-5">
+                <Rocket className="w-7 h-7" />
+              </div>
+              <h3 className="text-2xl font-bold mb-2">Get Started</h3>
+              <p className="text-amber-100 mb-4">Browse events or create your own amazing experience</p>
+              <button className="flex items-center gap-2 font-semibold hover:gap-3 transition-all">
+                <span>Explore now</span>
+                <ArrowRight className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Search and Filter Bar */}
-        <div className="flex flex-wrap gap-4 mb-6">
-          {/* Search Input */}
-          <div className="flex-1 min-w-[250px] relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg
-                className="w-5 h-5 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
+        {/* Feature Cards Row */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+          {/* Info Card 1 */}
+          <div className="bg-white rounded-2xl p-6 border border-gray-200 hover:border-violet-200 hover:shadow-lg transition-all">
+            <div className="p-3 bg-violet-100 rounded-xl w-fit mb-4">
+              <Target className="w-6 h-6 text-violet-600" />
             </div>
-            <input
-              type="text"
-              placeholder="Search events..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-            />
+            <h3 className="font-bold text-gray-900 text-lg mb-2">Find Your Interest</h3>
+            <p className="text-gray-500">Filter by category to find events that match your passion and interests.</p>
           </div>
 
-          {/* Category Filter */}
-          <div className="relative min-w-[180px]">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg
-                className="w-5 h-5 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
-                />
-              </svg>
+          {/* Info Card 2 */}
+          <div className="bg-white rounded-2xl p-6 border border-gray-200 hover:border-rose-200 hover:shadow-lg transition-all">
+            <div className="p-3 bg-rose-100 rounded-xl w-fit mb-4">
+              <Globe className="w-6 h-6 text-rose-600" />
             </div>
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none appearance-none bg-white"
-            >
-              {categories.map((category) => (
-                <option key={category} value={category === 'All Category' ? 'all' : category.toLowerCase()}>
-                  {category}
-                </option>
-              ))}
-            </select>
-            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-              <svg
-                className="w-5 h-5 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </div>
+            <h3 className="font-bold text-gray-900 text-lg mb-2">Connect Globally</h3>
+            <p className="text-gray-500">Join events from anywhere and meet like-minded people from around the world.</p>
           </div>
 
-          {/* Date Filter */}
-          <div className="relative min-w-[180px]">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg
-                className="w-5 h-5 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
-                />
-              </svg>
+          {/* Search Card */}
+          <div className="bg-white rounded-2xl p-6 border border-gray-200 hover:border-blue-200 hover:shadow-lg transition-all">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search events..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-xl border-2 border-transparent focus:bg-white focus:border-blue-500 outline-none transition-all text-gray-900"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <X className="w-5 h-5" />
+                </button>
+              )}
             </div>
+            <p className="text-gray-400 text-sm mt-3">Search by name, location, or category</p>
+          </div>
+        </div>
+
+        {/* Category Filter */}
+        <div className="flex items-center gap-3 mb-8 overflow-x-auto pb-2">
+          <span className="text-sm font-medium text-gray-500 whitespace-nowrap">Filter by:</span>
+          <div className="flex items-center gap-2">
+            {CATEGORIES.map((cat) => (
+              <CategoryPill
+                key={cat}
+                category={cat}
+                active={selectedCategory === (cat === 'All' ? 'all' : cat.toLowerCase())}
+                onClick={() => setSelectedCategory(cat === 'All' ? 'all' : cat.toLowerCase())}
+              />
+            ))}
+          </div>
+          
+          <div className="ml-auto flex items-center gap-2">
             <select
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none appearance-none bg-white"
+              className="px-4 py-2 bg-white border border-gray-200 rounded-full text-sm font-medium text-gray-700 cursor-pointer hover:border-gray-300 transition-all"
             >
-              {dateFilters.map((filter) => (
-                <option key={filter} value={filter === 'All Date' ? 'all' : filter.toLowerCase()}>
-                  {filter}
+              {DATE_FILTERS.map((filter) => (
+                <option key={filter} value={filter === 'All' ? 'all' : filter.toLowerCase()}>
+                  {filter === 'All' ? 'Any Time' : filter}
                 </option>
               ))}
             </select>
-            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-              <svg
-                className="w-5 h-5 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="px-4 py-2 bg-red-50 text-red-600 rounded-full text-sm font-medium hover:bg-red-100 transition-all flex items-center gap-1"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </div>
+                <X className="w-4 h-4" />
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Section Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">
+              {hasActiveFilters ? 'Search Results' : 'All Events'}
+            </h2>
+            <p className="text-gray-500 mt-1">
+              {loading ? 'Loading...' : `${totalCount} events found`}
+            </p>
           </div>
         </div>
 
         {/* Events Grid */}
         {error ? (
-          <div className="text-center py-12">
-            <p className="text-red-600 text-lg">Failed to load events. Please try again.</p>
+          <div className="bg-white rounded-3xl p-16 text-center border border-gray-200">
+            <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <X className="w-8 h-8 text-red-500" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Failed to load events</h3>
+            <p className="text-gray-500 mb-6">Something went wrong. Please try again.</p>
+            <button onClick={() => refetch()} className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all">
+              Try Again
+            </button>
           </div>
         ) : loading ? (
-          <div className="flex justify-center items-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          </div>
-        ) : events.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">No events found</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {events.map((event) => (
-              <div
-                key={event.id}
-                className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
-              >
-                <div 
-                  className="cursor-pointer"
-                  onClick={() => navigate(`/events/${event.id}`)}
-                >
-                {/* Event Image */}
-                <div className="w-full h-48 bg-gradient-to-br from-orange-200 to-orange-300 relative overflow-hidden">
-                  <img
-                    src={event.image}
-                    alt={event.title}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                    }}
-                  />
-                </div>
-
-                {/* Event Details */}
-                <div className="p-4">
-                  <h3 className="text-xl font-bold text-gray-900 mb-4">{event.title}</h3>
-
-                  {/* Event Info */}
-                  <div className="space-y-3 mb-4">
-                    {/* Date */}
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <svg
-                        className="w-5 h-5 text-blue-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                        />
-                      </svg>
-                      <span className="text-sm">{event.date}</span>
-                    </div>
-
-                    {/* Time */}
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <svg
-                        className="w-5 h-5 text-blue-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                      <span className="text-sm">{event.time}</span>
-                    </div>
-
-                    {/* Location */}
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <svg
-                        className="w-5 h-5 text-blue-600 flex-shrink-0"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                        />
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                        />
-                      </svg>
-                      <span className="text-sm truncate">{event.location}</span>
-                    </div>
-
-                    {/* Attendees */}
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <svg
-                        className="w-5 h-5 text-blue-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                        />
-                      </svg>
-                      <span className="text-sm">Max {event.maxAttendees} attendee</span>
-                    </div>
-                  </div>
-
-                  {/* Register Button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/events/${event.id}`);
-                    }}
-                    className="w-full bg-blue-600 text-white font-medium py-2.5 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <span>Register Now</span>
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </button>
-                </div>
-                </div>
-
-                {/* QR Code - Outside the clickable div */}
-                {event.qrcode && (
-                  <div className="px-4 pb-4">
-                    <div 
-                      className="flex items-center gap-2 text-gray-600 cursor-pointer hover:text-blue-600 transition-colors p-2 rounded hover:bg-gray-50"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedQRCode({
-                          title: event.title,
-                          qrcode: event.qrcode
-                        });
-                      }}
-                    >
-                      <svg
-                        className="w-5 h-5 text-blue-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
-                        />
-                      </svg>
-                      <span className="text-sm">QR Available</span>
-                    </div>
-                  </div>
-                )}
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <EventCardSkeleton key={i} />
             ))}
           </div>
+        ) : events.length === 0 ? (
+          <div className="bg-white rounded-3xl p-16 text-center border border-gray-200">
+            <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <CalendarDays className="w-8 h-8 text-gray-400" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">No events found</h3>
+            <p className="text-gray-500 mb-6">
+              {hasActiveFilters ? 'Try adjusting your filters.' : 'Be the first to create an event!'}
+            </p>
+            <button
+              onClick={hasActiveFilters ? clearFilters : () => navigate('/create-event')}
+              className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all inline-flex items-center gap-2"
+            >
+              {hasActiveFilters ? 'Clear Filters' : <><Plus className="w-5 h-5" /> Create Event</>}
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {events.map((event) => (
+                <EventCard
+                  key={event.id}
+                  event={event}
+                  onNavigate={handleNavigate}
+                  onShowQR={handleShowQR}
+                />
+              ))}
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 mt-12">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="p-3 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let page = i + 1;
+                    if (totalPages > 5) {
+                      if (currentPage <= 3) page = i + 1;
+                      else if (currentPage >= totalPages - 2) page = totalPages - 4 + i;
+                      else page = currentPage - 2 + i;
+                    }
+                    return (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={`w-10 h-10 rounded-xl font-semibold text-sm transition-all ${
+                          currentPage === page
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white border border-gray-200 text-gray-600 hover:bg-blue-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="p-3 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 
       {/* QR Code Modal */}
-      {selectedQRCode && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={() => setSelectedQRCode(null)}
-        >
-          <div 
-            className="bg-white rounded-lg p-6 max-w-sm w-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">{selectedQRCode.title}</h3>
-              <button
-                onClick={() => setSelectedQRCode(null)}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-            
-            <div className="flex justify-center mb-4">
-              <img
-                src={selectedQRCode.qrcode.startsWith('data:') ? selectedQRCode.qrcode : `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}${selectedQRCode.qrcode}`}
-                alt="QR Code"
-                className="w-64 h-64 object-contain"
-                onLoad={() => {
-                  console.log('QR Code image loaded successfully in AllEventsPage');
-                }}
-                onError={(e) => {
-                  console.error('QR Code image failed to load in AllEventsPage:', e);
-                  console.error('QR Code data type:', typeof selectedQRCode.qrcode);
-                  console.error('QR Code data length:', selectedQRCode.qrcode?.length);
-                  console.error('QR Code data starts with:', selectedQRCode.qrcode?.substring(0, 50));
-                  e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDR2MW02IDExaDJtLTYgMGgtMnY0bTAtMTF2M20wMGguMDFNMTIgMTJoNC4wMU0xNiAyMGg0TTQgMTJoNG0xMiAwaC4wMU01IDhoMmExIDEgMCAwMDEtMVY1YTEgMSAwIDAwLTEtMUg1YTEgMSAwIDAwLTEgMXYyYTEgMSAwIDAwMSAxem0xMiAwaDJhMSAxIDAgMDAxLTFWNWExIDEgMCAwMC0xLTFoLTJhMSAxIDAgMDAtMSAxdjJhMSAxIDAgMDAxIDF6TTUgMjBoMmExIDEgMCAwMDEtMXYtMmExIDEgMCAwMC0xLTFINWExIDEgMCAwMC0xIDF2MmExIDEgMCAwMTEgMXoiIGZpbGw9IiM5Q0EzQUYiLz4KPC9zdmc+';
-                }}
-              />
-            </div>
-            
-            <p className="text-center text-sm text-gray-600 mb-4">
-              Scan this QR code to register for the event
-            </p>
-            
-            <div className="flex gap-3">
-              <button
-                onClick={() => setSelectedQRCode(null)}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-              >
-                Close
-              </button>
-              <button
-                onClick={() => handleDownloadQr(selectedQRCode.qrcode, selectedQRCode.title)}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                  />
-                </svg>
-                Download
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <QRCodeModal
+        selectedQRCode={selectedQRCode}
+        onClose={() => setSelectedQRCode(null)}
+        onDownload={handleDownloadQr}
+      />
     </div>
   );
 };

@@ -94,7 +94,7 @@ const mapRawToEvent = (raw) => {
     location: raw.location ?? '—',
     fullAddress: raw.full_address ?? raw.fullAddress ?? raw.location ?? '—',
     capacity: raw.capacity ?? 0,
-    registered: raw.registered ?? raw.attendees_count ?? 0,
+    registered: raw.number_of_registered ?? raw.registered ?? raw.attendees_count ?? 0,
     price: raw.price ?? 0,
     organizer: raw.organization_name ?? raw.organizationName ?? raw.organizer ?? '—',
     organizationId: raw.organization_id ?? raw.organizationId ?? '',
@@ -120,6 +120,8 @@ export const EventDetailPage = () => {
   const location = useLocation();
   const { id } = useParams();
   const fromGroup = location.state?.fromGroup;
+  const fromDashboard = location.state?.fromDashboard;
+  const fromManageEvents = location.state?.fromManageEvents;
   const [registeredQrCode, setRegisteredQrCode] = useState('');
   const [registeredTicketCode, setRegisteredTicketCode] = useState('');
   const [showQrModal, setShowQrModal] = useState(false);
@@ -373,6 +375,10 @@ export const EventDetailPage = () => {
   const handleBack = () => {
     if (fromGroup) {
       navigate(`/groups/${fromGroup}`);
+    } else if (fromDashboard) {
+      navigate('/');
+    } else if (fromManageEvents) {
+      navigate('/manage-events');
     } else {
       navigate('/all-events');
     }
@@ -412,7 +418,7 @@ export const EventDetailPage = () => {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            <span className="font-medium">{fromGroup ? 'Back to Group' : 'All Events'}</span>
+            <span className="font-medium">{fromGroup ? 'Back to Group' : fromDashboard ? 'Dashboard' : fromManageEvents ? 'Manage Events' : 'All Events'}</span>
           </button>
           
           <div className="flex items-center gap-3">
@@ -555,7 +561,7 @@ export const EventDetailPage = () => {
           ) : (
             <button
               onClick={handleShowQrTicket}
-              className="w-full py-4 bg-green-600 hover:bg-green-700 text-white text-lg font-semibold rounded-xl transition-colors"
+              className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white text-lg font-semibold rounded-xl transition-colors"
             >
               View My Ticket
             </button>

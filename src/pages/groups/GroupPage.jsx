@@ -3,6 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { groupService, userService } from '@/services';
 import api from '@/services/api';
+import {
+  Users,
+  Calendar,
+  Plus,
+  Search,
+  Eye,
+  UsersRound,
+  Layers,
+  UserPlus,
+  Mail,
+  Link2,
+} from 'lucide-react';
 
 const DEBOUNCE_MS = 400;
 
@@ -650,87 +662,131 @@ export const GroupPage = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center justify-between">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700" aria-label="Dismiss">×</button>
-        </div>
-      )}
-      {/* Header */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Groups</h1>
-            <p className="text-gray-600 mt-1">Join groups and participate in group events</p>
+    <div className="min-h-screen bg-gray-50">
+      <div className="px-4 sm:px-6 py-8">
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center justify-between mb-6">
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700" aria-label="Dismiss">×</button>
           </div>
-          <div className="flex gap-2">
+        )}
+
+        {/* Hero Header */}
+        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden mb-8">
+          <div className="bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 px-8 py-6">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+              {/* Left - Title */}
+              <div className="flex items-center gap-4">
+                <div className="p-4 bg-white/20 backdrop-blur-sm rounded-2xl">
+                  <UsersRound className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold text-white">Groups</h1>
+                  <p className="text-blue-100">Join communities and participate in group events</p>
+                </div>
+              </div>
+
+              {/* Right - Create Button */}
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="flex items-center gap-2 bg-white text-blue-600 px-6 py-3 rounded-xl hover:bg-blue-50 transition-all font-semibold shadow-lg"
+              >
+                <Plus className="w-5 h-5" />
+                <span>Create Group</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Stats Row */}
+          <div className="px-8 py-5 flex flex-wrap items-center gap-8">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-blue-100 rounded-xl">
+                <Layers className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900">{groups.length}</p>
+                <p className="text-sm text-gray-500">All Groups</p>
+              </div>
+            </div>
+            <div className="w-px h-12 bg-gray-200" />
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-cyan-100 rounded-xl">
+                <Users className="w-5 h-5 text-cyan-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900">{myGroups.length}</p>
+                <p className="text-sm text-gray-500">My Groups</p>
+              </div>
+            </div>
+            {pendingInvitations.length > 0 && (
+              <>
+                <div className="w-px h-12 bg-gray-200" />
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-amber-100 rounded-xl relative">
+                    <Mail className="w-5 h-5 text-amber-600" />
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center font-bold">{pendingInvitations.length}</span>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-gray-900">{pendingInvitations.length}</p>
+                    <p className="text-sm text-gray-500">Invitations</p>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Tabs & Search */}
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
+          {/* Tab Pills */}
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              onClick={() => setActiveTab('all')}
+              className={`px-5 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 ${
+                activeTab === 'all'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'bg-white text-gray-600 border border-gray-200 hover:border-blue-300 hover:text-blue-600'
+              }`}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              <span>Create Group</span>
+              <Layers className="w-4 h-4" />
+              All Groups
+            </button>
+            <button
+              onClick={() => setActiveTab('my')}
+              className={`px-5 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 ${
+                activeTab === 'my'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'bg-white text-gray-600 border border-gray-200 hover:border-blue-300 hover:text-blue-600'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              My Groups
+            </button>
+            <button
+              onClick={() => setActiveTab('invite')}
+              className={`px-5 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 ${
+                activeTab === 'invite'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'bg-white text-gray-600 border border-gray-200 hover:border-blue-300 hover:text-blue-600'
+              }`}
+            >
+              <UserPlus className="w-4 h-4" />
+              Invite User
             </button>
           </div>
-        </div>
-      </div>
 
-      {/* Tabs */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex space-x-8 border-b border-gray-200">
-          <button
-            onClick={() => setActiveTab('all')}
-            className={`pb-4 px-1 text-sm font-medium transition-colors ${
-              activeTab === 'all'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            All Group
-          </button>
-          <button
-            onClick={() => setActiveTab('my')}
-            className={`pb-4 px-1 text-sm font-medium transition-colors ${
-              activeTab === 'my'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            My Groups
-          </button>
-          <button
-            onClick={() => setActiveTab('invite')}
-            className={`pb-4 px-1 text-sm font-medium transition-colors ${
-              activeTab === 'invite'
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            Invite User
-          </button>
-        </div>
-
-        {/* Search Bar */}
-        <div className="mt-6">
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
+          {/* Search Bar */}
+          <div className="relative min-w-[300px]">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Search events..."
+              placeholder="Search groups..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
         </div>
-      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:min-h-[calc(100vh-18rem)] items-stretch">
         {/* Main Content Area */}
@@ -743,44 +799,39 @@ export const GroupPage = () => {
               </div>
             )}
             {displayedGroups.map((group) => (
-              <div key={group.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
+              <div key={group.id} className="group bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-xl hover:border-blue-200 transition-all duration-300">
                 {/* Group Image */}
-                <div className="h-48 bg-gray-200">
+                <div className="relative h-44 bg-gray-200 overflow-hidden">
                   <img 
                     src={group.image} 
                     alt={group.name}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                  
+                  {/* Stats on Image */}
+                  <div className="absolute bottom-3 left-3 flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white/95 backdrop-blur-sm rounded-full text-xs font-semibold text-gray-700">
+                      <Users className="w-3.5 h-3.5 text-blue-500" />
+                      <span>{group.members} members</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white/95 backdrop-blur-sm rounded-full text-xs font-semibold text-gray-700">
+                      <Calendar className="w-3.5 h-3.5 text-cyan-500" />
+                      <span>{group.events} events</span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Group Content */}
-                <div className="p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">{group.name}</h3>
-                  <p className="text-gray-600 text-sm mb-4 line-clamp-2">{group.description}</p>
-                  
-                  <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
-                    <div className="flex items-center gap-1">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                      </svg>
-                      <span>{group.members} Members</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      <span>{group.events} Events</span>
-                    </div>
-                  </div>
+                <div className="p-5">
+                  <h3 className="text-lg font-bold text-gray-900 mb-1.5 group-hover:text-blue-600 transition-colors line-clamp-1">{group.name}</h3>
+                  <p className="text-gray-500 text-sm mb-4 line-clamp-2">{group.description}</p>
 
                   <button
                     onClick={() => handleViewGroup(group.id)}
-                    className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                    className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-xl hover:bg-blue-700 transition-all font-semibold"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
+                    <Eye className="w-4 h-4" />
                     <span>View Group</span>
                   </button>
                 </div>
@@ -1761,7 +1812,7 @@ export const GroupPage = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };
-

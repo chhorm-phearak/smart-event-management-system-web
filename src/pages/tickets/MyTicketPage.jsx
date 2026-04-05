@@ -3,6 +3,24 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { eventService } from '@/services';
 import { getApiOrigin } from '@/utils';
+import {
+  Search,
+  Calendar,
+  Clock,
+  MapPin,
+  Ticket,
+  QrCode,
+  X,
+  Download,
+  RefreshCw,
+  Sparkles,
+  ArrowRight,
+  CheckCircle,
+  Filter,
+  Copy,
+  AlertCircle,
+  CalendarDays,
+} from 'lucide-react';
 
 const isValidDate = (date) => date instanceof Date && !Number.isNaN(date.getTime());
 
@@ -239,170 +257,269 @@ export const MyTicketPage = () => {
 
   const categories = ['all', ...new Set(tickets.map(ticket => ticket.category))];
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+  // Category style helper
+  const getCategoryStyle = (category) => {
+    const styles = {
+      technology: 'bg-violet-100 text-violet-700 border-violet-200',
+      business: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+      education: 'bg-blue-100 text-blue-700 border-blue-200',
+      entertainment: 'bg-pink-100 text-pink-700 border-pink-200',
+      sports: 'bg-orange-100 text-orange-700 border-orange-200',
+    };
+    return styles[category?.toLowerCase()] || 'bg-gray-100 text-gray-700 border-gray-200';
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">My Ticket</h1>
-            <p className="text-gray-600 mt-1">View and manage your event tickets</p>
-          </div>
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span>{tickets.length} tickets</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Search and Filters */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {/* Search Bar */}
-          <div className="md:col-span-2">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
+    <div className="min-h-screen bg-gray-50">
+      <div className="px-4 sm:px-6 py-8">
+        
+        {/* Hero Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
+          {/* Main Welcome Card */}
+          <div className="lg:col-span-2 bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 rounded-3xl p-10 md:p-12 text-white relative overflow-hidden min-h-[280px] flex flex-col justify-between">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/3" />
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/3" />
+            <div className="absolute top-1/2 right-1/4 w-32 h-32 bg-blue-400/20 rounded-full blur-2xl" />
+            
+            <div className="relative z-10">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/15 backdrop-blur-sm rounded-full mb-6">
+                <Ticket className="w-4 h-4" />
+                <span className="text-sm font-medium">My Tickets</span>
               </div>
-              <input
-                type="text"
-                placeholder="Search events..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+              <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">
+                Your Event<br />Tickets
+              </h1>
+              <p className="text-blue-100 text-lg max-w-lg">
+                Access all your registered events in one place. Show your QR code at the venue for quick check-in.
+              </p>
+            </div>
+            
+            <div className="relative z-10 flex flex-wrap items-center gap-4 mt-6">
+              <div className="flex items-center gap-3 px-5 py-3 bg-white/15 backdrop-blur-sm rounded-2xl">
+                <CheckCircle className="w-6 h-6" />
+                <div>
+                  <div className="text-2xl font-bold">{tickets.length}</div>
+                  <div className="text-sm text-blue-200">Active Tickets</div>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Category Filter */}
-          <div>
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="all">All Category</option>
-              {categories.filter(cat => cat !== 'all').map(category => (
-                <option key={category} value={category}>{category}</option>
-              ))}
-            </select>
-          </div>
+          {/* Right Column - Quick Stats */}
+          <div className="flex flex-col gap-6">
+            {/* Upcoming Events Card */}
+            <div className="bg-white rounded-3xl p-8 border border-gray-200 flex-1">
+              <div className="p-4 bg-blue-100 rounded-2xl w-fit mb-5">
+                <CalendarDays className="w-7 h-7 text-blue-600" />
+              </div>
+              <div className="text-4xl font-bold text-gray-900 mb-2">
+                {tickets.filter(t => new Date(t.date) > new Date()).length}
+              </div>
+              <p className="text-gray-500 text-lg">Upcoming Events</p>
+              <p className="text-blue-600 mt-3 font-medium flex items-center gap-2">
+                <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                Don't miss out!
+              </p>
+            </div>
 
-          {/* Date Filter */}
-          <div>
-            <select
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="all">All Date</option>
-              <option value="upcoming">Upcoming</option>
-              <option value="past">Past</option>
-            </select>
+            {/* Search Card */}
+            <div className="bg-white rounded-3xl p-6 border border-gray-200">
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search tickets..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-xl border-2 border-transparent focus:bg-white focus:border-blue-500 outline-none transition-all text-gray-900"
+                />
+                {searchTerm && (
+                  <button onClick={() => setSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    <X className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Refresh Button */}
-        <div className="mt-4 flex justify-end">
+        {/* Filters Row */}
+        <div className="flex flex-wrap items-center gap-4 mb-8">
+          <div className="flex items-center gap-2">
+            <Filter className="w-5 h-5 text-gray-400" />
+            <span className="text-sm font-medium text-gray-500">Filter:</span>
+          </div>
+          
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="px-4 py-2 bg-white border border-gray-200 rounded-full text-sm font-medium text-gray-700 cursor-pointer hover:border-blue-300 transition-all"
+          >
+            <option value="all">All Categories</option>
+            {categories.filter(cat => cat !== 'all').map(category => (
+              <option key={category} value={category}>{category}</option>
+            ))}
+          </select>
+
+          <select
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="px-4 py-2 bg-white border border-gray-200 rounded-full text-sm font-medium text-gray-700 cursor-pointer hover:border-blue-300 transition-all"
+          >
+            <option value="all">All Dates</option>
+            <option value="upcoming">Upcoming</option>
+            <option value="past">Past Events</option>
+          </select>
+
           <button
             onClick={fetchMyTickets}
-            className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors"
+            className="ml-auto flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-blue-600 transition-colors rounded-full hover:bg-blue-50"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            <span>Refresh</span>
+            <RefreshCw className="w-4 h-4" />
+            <span className="text-sm font-medium">Refresh</span>
           </button>
         </div>
-      </div>
 
-      {/* Tickets Grid */}
-      {filteredTickets.length === 0 ? (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-          <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No tickets found</h3>
-          <p className="text-gray-500">Try adjusting your search or filters</p>
+        {/* Section Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Your Tickets</h2>
+            <p className="text-gray-500 mt-1">
+              {loading ? 'Loading...' : `${filteredTickets.length} tickets found`}
+            </p>
+          </div>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTickets.map((ticket) => (
-            <div key={ticket.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
-              {/* Event Image */}
-              <div className="h-48 bg-gray-200 relative">
-                <img 
-                  src={ticket.image} 
-                  alt={ticket.title}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute top-3 right-3">
-                  <span className="inline-block px-3 py-1 bg-white/90 backdrop-blur-sm text-xs font-medium text-gray-700 rounded-full">
-                    {ticket.category}
-                  </span>
+
+        {/* Loading State */}
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-3xl overflow-hidden border border-gray-200 animate-pulse">
+                <div className="h-52 bg-gray-200" />
+                <div className="p-5 space-y-4">
+                  <div className="h-6 bg-gray-200 rounded-lg w-3/4" />
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gray-100 rounded-lg" />
+                      <div className="h-4 bg-gray-100 rounded w-24" />
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gray-100 rounded-lg" />
+                      <div className="h-4 bg-gray-100 rounded w-32" />
+                    </div>
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <div className="h-12 bg-gray-200 rounded-xl flex-1" />
+                    <div className="h-12 bg-gray-200 rounded-xl flex-1" />
+                  </div>
                 </div>
               </div>
-
-              {/* Ticket Content */}
-              <div className="p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-1">{ticket.title}</h3>
-                
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <span>{formatDate(ticket.date)} at {formatTime(ticket.time)}</span>
-                  </div>
-                  
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <span className="line-clamp-1">{ticket.location}</span>
-                  </div>
-                  
-                  <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <span>Registered on {formatDate(ticket.registrationDate)}</span>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => handleViewEvent(ticket.eventId)}
-                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
-                  >
-                    View Event
-                  </button>
-                  <button
-                    onClick={() => handleShowQrTicket(ticket)}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                  >
-                    Show QR Ticket
-                  </button>
-                </div>
-              </div>
+            ))}
+          </div>
+        ) : filteredTickets.length === 0 ? (
+          <div className="bg-white rounded-3xl p-16 text-center border border-gray-200">
+            <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Ticket className="w-8 h-8 text-gray-400" />
             </div>
-          ))}
-        </div>
-      )}
+            <h3 className="text-xl font-bold text-gray-900 mb-2">No tickets found</h3>
+            <p className="text-gray-500 mb-6">
+              {searchTerm || selectedCategory !== 'all' || selectedDate !== 'all' 
+                ? 'Try adjusting your filters.' 
+                : 'Register for events to see your tickets here.'}
+            </p>
+            <button
+              onClick={() => navigate('/all-events')}
+              className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all inline-flex items-center gap-2"
+            >
+              Browse Events
+              <ArrowRight className="w-5 h-5" />
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {filteredTickets.map((ticket) => (
+              <div key={ticket.id} className="group bg-white rounded-3xl overflow-hidden border border-gray-200 hover:border-blue-300 hover:shadow-xl transition-all duration-300">
+                {/* Event Image */}
+                <div className="relative h-52 bg-gradient-to-br from-blue-100 to-indigo-100 overflow-hidden">
+                  <img 
+                    src={ticket.image} 
+                    alt={ticket.title}
+                    className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+                  
+                  {/* Category badge */}
+                  <div className="absolute top-4 left-4">
+                    <span className={`px-3 py-1.5 rounded-xl text-xs font-bold border backdrop-blur-sm bg-white/90 ${getCategoryStyle(ticket.category)}`}>
+                      {ticket.category}
+                    </span>
+                  </div>
+                  
+                  {/* Date badge */}
+                  <div className="absolute bottom-4 left-4">
+                    <div className="px-4 py-2 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg">
+                      <div className="text-xl font-bold text-gray-900 leading-none">{new Date(ticket.date).getDate()}</div>
+                      <div className="text-xs font-semibold text-gray-500 uppercase">{new Date(ticket.date).toLocaleDateString('en-US', { month: 'short' })}</div>
+                    </div>
+                  </div>
+                  
+                  {/* Status badge */}
+                  {new Date(ticket.date) > new Date() ? (
+                    <div className="absolute top-4 right-4 px-3 py-1.5 bg-emerald-500 text-white text-xs font-bold rounded-xl">
+                      Upcoming
+                    </div>
+                  ) : (
+                    <div className="absolute top-4 right-4 px-3 py-1.5 bg-gray-500 text-white text-xs font-bold rounded-xl">
+                      Past
+                    </div>
+                  )}
+                </div>
+
+                {/* Ticket Content */}
+                <div className="p-5">
+                  <h3 className="font-bold text-gray-900 text-lg mb-4 line-clamp-2 group-hover:text-blue-600 transition-colors leading-snug">
+                    {ticket.title}
+                  </h3>
+                  
+                  <div className="space-y-3 text-sm text-gray-500 mb-5">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-50 rounded-lg">
+                        <Clock className="w-4 h-4 text-blue-500" />
+                      </div>
+                      <span className="font-medium">{formatTime(ticket.time)}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-rose-50 rounded-lg">
+                        <MapPin className="w-4 h-4 text-rose-500" />
+                      </div>
+                      <span className="truncate font-medium">{ticket.location}</span>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => handleViewEvent(ticket.eventId)}
+                      className="flex-1 py-3.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                    >
+                      View Details
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleShowQrTicket(ticket)}
+                      className="flex-1 py-3.5 border-2 border-blue-200 text-blue-600 rounded-xl hover:bg-blue-50 hover:border-blue-300 transition-colors font-semibold flex items-center justify-center gap-2"
+                    >
+                      <QrCode className="w-4 h-4" />
+                      QR Ticket
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* QR Ticket Modal */}
       {showQrModal && selectedTicket && (

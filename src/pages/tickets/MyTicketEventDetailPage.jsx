@@ -89,7 +89,7 @@ const mapRawToEvent = (raw) => {
     location: raw.location ?? '—',
     fullAddress: raw.full_address ?? raw.fullAddress ?? raw.location ?? '—',
     capacity: raw.capacity ?? 0,
-    registered: raw.registered ?? raw.attendees_count ?? 0,
+    registered: raw.number_of_registered ?? raw.registered ?? raw.attendees_count ?? 0,
     price: raw.price ?? 0,
     organizer: raw.organization_name ?? raw.organizationName ?? raw.organizer ?? '—',
     image: imageUrl,
@@ -131,6 +131,7 @@ export const MyTicketEventDetailPage = () => {
       ]);
 
       const rawEvent = getEventPayload(eventRes);
+      console.log('Raw event response:', rawEvent);
       const mappedEvent = mapRawToEvent(rawEvent);
       if (!mappedEvent) {
         setEvent(null);
@@ -160,11 +161,20 @@ export const MyTicketEventDetailPage = () => {
       ).toString().trim();
       const registeredImage = toAbsoluteImageUrl(extractRawImageValue(registeredEvent));
 
+      // Get registered count from registeredEvent if available
+      const registeredCount = 
+        registeredEvent?.number_of_registered ?? 
+        registeredEvent?.registered ?? 
+        registeredEvent?.attendees_count ?? 
+        mappedEvent.registered ?? 
+        0;
+
       setEvent({
         ...mappedEvent,
         image: registeredImage || mappedEvent.image || FALLBACK_EVENT_IMAGE,
         qrcode: qrCode || mappedEvent.qrcode,
         qrTicket: qrTicket || mappedEvent.qrTicket,
+        registered: registeredCount,
       });
       setQrImage(qrCode || mappedEvent.qrcode || '');
       setTicketCode(qrTicket || mappedEvent.qrTicket || '');
@@ -296,6 +306,13 @@ export const MyTicketEventDetailPage = () => {
   const hasTicketCode = Boolean(ticketCode);
   const isRegistered = hasQrImage || hasTicketCode;
 
+  const formatTimeRange = (start, end) => {
+    const s = formatTime(start);
+    const e = formatTime(end);
+    if (s === '—' && e === '—') return '—';
+    return `${s} - ${e}`;
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -319,190 +336,184 @@ export const MyTicketEventDetailPage = () => {
   }
 
   return (
-    <div className="w-full">
-      {/* Back Button */}
-      <button
-        onClick={() => navigate('/my-ticket')}
-        className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors mb-6"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-        <span className="font-medium">Back to My Tickets</span>
-      </button>
-
-      {/* Event Image */}
-      <div className="mb-6">
-        <img 
-          src={event.image || FALLBACK_EVENT_IMAGE}
-          alt={event.title}
-          className="w-full h-64 object-cover rounded-lg shadow-sm"
-          onError={(e) => {
-            e.currentTarget.src = FALLBACK_EVENT_IMAGE;
-          }}
-        />
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => navigate('/my-ticket')}
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            <span className="font-medium">My Tickets</span>
+          </button>
+          
+          <div className="flex items-center gap-3">
+            <span className="px-3 py-1.5 bg-green-100 text-green-700 text-xs font-semibold uppercase tracking-wider rounded-full">
+              ✓ Registered
+            </span>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Content Area */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Purple Banner Background */}
-          <div className="bg-purple-100 rounded-lg p-6">
-            {/* Category Tag */}
-            <div className="mb-4">
-              <span className="inline-block px-4 py-1.5 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                {event.category}
-              </span>
+      {/* Hero Section - Split Layout */}
+      <div className="lg:grid lg:grid-cols-2">
+        {/* Left - Image */}
+        <div className="relative h-[40vh] lg:h-auto lg:sticky lg:top-0">
+          <img 
+            src={event.image || FALLBACK_EVENT_IMAGE} 
+            alt={event.title}
+            className="absolute inset-0 w-full h-full object-cover"
+            onError={(e) => {
+              e.currentTarget.src = FALLBACK_EVENT_IMAGE;
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent lg:bg-gradient-to-r lg:from-transparent lg:to-white/20"></div>
+          
+          {/* Price Badge */}
+          <div className="absolute bottom-6 left-6 lg:bottom-auto lg:top-24 lg:left-6">
+            <div className="bg-white text-gray-900 px-5 py-2 rounded-full font-bold text-xl shadow-lg">
+              {event.price === 0 ? 'FREE' : `$${event.price}`}
             </div>
+          </div>
+        </div>
 
-            {/* Event Title */}
-            <h1 className="text-3xl font-bold text-gray-900 mb-3">{event.title}</h1>
-
-            {/* Event Description */}
-            <p className="text-gray-600 leading-relaxed">
-              {event.shortDescription || event.description}
-            </p>
+        {/* Right - Content */}
+        <div className="relative bg-white px-6 lg:px-12 py-10 lg:py-24 lg:overflow-y-auto">
+          {/* Category */}
+          <div className="flex items-center gap-3 mb-6">
+            <span className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-full">
+              {event.category}
+            </span>
           </div>
 
-          {/* Date & Time and Location Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Date & Time Card */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+          {/* Title */}
+          <h1 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-4 leading-tight">
+            {event.title}
+          </h1>
+
+          {/* Short Description */}
+          {event.shortDescription && (
+            <p className="text-lg text-gray-500 mb-8 leading-relaxed">{event.shortDescription}</p>
+          )}
+
+          {/* Event Meta Grid */}
+          <div className="grid grid-cols-2 gap-4 mb-10">
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
                   <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                 </div>
-                <h3 className="text-base font-semibold text-gray-900">Date & Time</h3>
+                <span className="text-gray-500 text-sm font-medium">Date</span>
               </div>
-              <div className="space-y-1">
-                <p className="text-gray-900 font-bold text-lg">{formatDate(event.eventDate)}</p>
-                <p className="text-gray-700 font-semibold text-base">
-                  {formatTime(event.startTime)} - {formatTime(event.endTime)}
-                </p>
-              </div>
+              <p className="text-gray-900 font-semibold">{formatDate(event.eventDate)}</p>
             </div>
 
-            {/* Location Card */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <h3 className="text-base font-semibold text-gray-900">Location</h3>
+                <span className="text-gray-500 text-sm font-medium">Time</span>
               </div>
-              <div className="space-y-1">
-                <p className="text-gray-900 font-bold text-lg">{event.location}</p>
-                <p className="text-gray-700 font-semibold text-base">{event.fullAddress}</p>
+              <p className="text-gray-900 font-semibold">{formatTimeRange(event.startTime, event.endTime)}</p>
+            </div>
+
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 col-span-2">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </div>
+                <span className="text-gray-500 text-sm font-medium">Location</span>
               </div>
+              <p className="text-gray-900 font-semibold">{event.location}</p>
+              <p className="text-gray-500 text-sm mt-1">{event.fullAddress}</p>
             </div>
           </div>
 
-          {/* Event Information */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Event Information</h2>
+          {/* Capacity Bar */}
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 mb-10">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-gray-600 font-medium">Attendance</span>
+              <span className="text-gray-900 font-semibold">{event.registered} / {event.capacity} spots</span>
+            </div>
+            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-blue-600 rounded-full transition-all duration-700"
+                style={{ width: `${attendancePercentage}%` }}
+              ></div>
+            </div>
+            <p className="text-gray-500 text-sm mt-2">{attendancePercentage}% filled</p>
+          </div>
+
+          {/* CTA Button - View My Ticket */}
+          <button
+            onClick={handleShowQrTicket}
+            className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white text-lg font-semibold rounded-xl transition-colors"
+          >
+            View My Ticket
+          </button>
+        </div>
+      </div>
+
+      {/* Content Sections */}
+      <div className="bg-white border-t border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 lg:px-12 py-16">
+          {/* About Section */}
+          <section className="mb-16">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">About This Event</h2>
+            <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+              <p className="text-gray-600 leading-relaxed whitespace-pre-line">{event.description}</p>
+            </div>
+          </section>
+
+          {/* Schedule Section */}
+          <section className="mb-16">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Event Schedule</h2>
+              {event.agendas && event.agendas.length > 0 && (
+                <span className="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-semibold rounded-full">
+                  {event.agendas.length} {event.agendas.length === 1 ? 'Session' : 'Sessions'}
+                </span>
+              )}
+            </div>
             
-            <div className="space-y-5">
-              {/* Organizer */}
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center shrink-0">
-                  <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                    />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 mb-0.5">Organized by</p>
-                  <p className="text-base font-semibold text-gray-900">{event.organizer}</p>
-                </div>
-              </div>
-
-              {/* Attendance */}
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center shrink-0">
-                  <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                    />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm text-gray-500 mb-1">Attendance</p>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xl font-bold text-gray-900">{attendancePercentage}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${attendancePercentage}%` }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* About This Event */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">About This Event</h2>
-            <p className="text-gray-600 leading-relaxed">{event.description}</p>
-          </div>
-
-          {/* Event Agenda */}
-          {event.agendas && event.agendas.length > 0 && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Event Agenda</h2>
+            {event.agendas && event.agendas.length > 0 ? (
               <div className="space-y-4">
                 {event.agendas.map((agenda, index) => (
-                  <div key={agenda.id || index} className="border-l-4 border-blue-500 pl-4 py-2">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-medium text-gray-500">
+                  <div 
+                    key={agenda.id || index}
+                    className="bg-white border border-gray-200 hover:border-blue-300 rounded-xl p-6 transition-colors"
+                  >
+                    <div className="flex items-start gap-5">
+                      <div className="flex-shrink-0 w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">
+                        {String(index + 1).padStart(2, '0')}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-3 mb-2">
+                          <span className="px-3 py-1 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg">
                             {formatTime(agenda.startTime)} - {formatTime(agenda.endTime)}
                           </span>
                         </div>
-                        <h3 className="text-base font-semibold text-gray-900 mb-1">{agenda.title}</h3>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-1">{agenda.title}</h3>
                         {agenda.description && (
-                          <p className="text-sm text-gray-600 mb-2">{agenda.description}</p>
+                          <p className="text-gray-500">{agenda.description}</p>
                         )}
                         {agenda.speaker && (
-                          <div className="flex items-center gap-2">
-                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                              />
-                            </svg>
-                            <span className="text-sm text-gray-600">Speaker: {agenda.speaker}</span>
+                          <div className="flex items-center gap-3 mt-4 pt-4 border-t border-gray-100">
+                            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold">
+                              {agenda.speaker.charAt(0)}
+                            </div>
+                            <span className="text-gray-600 font-medium">{agenda.speaker}</span>
                           </div>
                         )}
                       </div>
@@ -510,70 +521,82 @@ export const MyTicketEventDetailPage = () => {
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-        </div>
-
-        {/* Right Sidebar */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 sticky top-6">
-            {/* Pricing Section */}
-            <div className="bg-blue-600 rounded-lg p-6 mb-4">
-              <div className="text-white text-center">
-                <div className="text-4xl font-bold">
-                  {event.price === 0 ? 'Free' : `$${event.price}`}
-                </div>
-                <div className="text-sm text-blue-100 mt-2">per ticket</div>
-              </div>
-            </div>
-
-            {/* Show QR Ticket Button - Always show since coming from My Ticket */}
-            <button
-              onClick={handleShowQrTicket}
-              className="w-full bg-blue-600 text-white font-medium py-2.5 rounded-lg hover:bg-blue-700 transition-colors text-sm mb-4"
-            >
-              Show Qr Ticket
-            </button>
-
-            {/* Registered Status - Always show since coming from My Ticket */}
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-              <div className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            ) : (
+              <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl p-12 text-center">
+                <svg className="w-12 h-12 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                <span className="text-green-700 font-medium">Registered!</span>
+                <p className="text-gray-400 font-medium">No schedule available yet</p>
+              </div>
+            )}
+          </section>
+
+          {/* Info Cards Grid */}
+          <section>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Organizer */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
+                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-4">Hosted By</h3>
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-lg">
+                    {event.organizer?.charAt(0) || 'O'}
+                  </div>
+                  <div>
+                    <p className="text-gray-900 font-semibold">{event.organizer}</p>
+                    <p className="text-gray-500 text-sm">Organization</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Location */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
+                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-4">Venue</h3>
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-gray-900 font-semibold">{event.location}</p>
+                    <p className="text-gray-500 text-sm mt-1">{event.fullAddress}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Requirements */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
+                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-4">Requirements</h3>
+                <ul className="space-y-3">
+                  {event.registrationRequired && (
+                    <li className="flex items-center gap-3 text-gray-600">
+                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      <span className="text-sm">Registration required</span>
+                    </li>
+                  )}
+                  {event.qrCodeAvailable && (
+                    <li className="flex items-center gap-3 text-gray-600">
+                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      <span className="text-sm">QR code ticket</span>
+                    </li>
+                  )}
+                  {event.bringValidId && (
+                    <li className="flex items-center gap-3 text-gray-600">
+                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      <span className="text-sm">Bring valid ID</span>
+                    </li>
+                  )}
+                </ul>
               </div>
             </div>
-
-            {/* Requirements Checklist */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-gray-900 mb-3">Requirements:</h3>
-              {event.registrationRequired && (
-                <div className="flex items-center gap-2 text-sm text-gray-700">
-                  <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>Registration is required</span>
-                </div>
-              )}
-              {event.qrCodeAvailable && (
-                <div className="flex items-center gap-2 text-sm text-gray-700">
-                  <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>QR code available after registration</span>
-                </div>
-              )}
-              {event.bringValidId && (
-                <div className="flex items-center gap-2 text-sm text-gray-700">
-                  <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>Bring valid ID to the event</span>
-                </div>
-              )}
-            </div>
-          </div>
+          </section>
         </div>
       </div>
 

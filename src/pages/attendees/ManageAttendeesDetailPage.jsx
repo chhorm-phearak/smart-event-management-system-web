@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { attendeeService } from '@/services';
+import * as XLSX from 'xlsx';
 
 const FILE_SCANNER_ID = 'qr-file-scanner';
 
@@ -527,6 +528,50 @@ export const ManageAttendeesDetailPage = () => {
     deleteMutation.mutate({ eventId: id, registrationId });
   };
 
+  const handleDownloadExcel = useCallback(() => {
+    if (!filteredAttendees.length) {
+      toast.error('No attendees to export');
+      return;
+    }
+
+    try {
+      const excelData = filteredAttendees.map((attendee, index) => ({
+        'No.': index + 1,
+        'Name': attendee.name || '—',
+        'Email': attendee.email || '—',
+        'Contact': attendee.contact || '—',
+        'Registered At': formatDateTime(attendee.registered_at),
+        'Status': renderStatusLabel(attendee.status),
+        'Ticket ID': attendee.registration_id || '—',
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(excelData);
+      
+      const colWidths = [
+        { wch: 5 },
+        { wch: 25 },
+        { wch: 30 },
+        { wch: 15 },
+        { wch: 20 },
+        { wch: 15 },
+        { wch: 40 },
+      ];
+      worksheet['!cols'] = colWidths;
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendees');
+
+      const eventName = eventInfo.title?.replace(/[^a-zA-Z0-9]/g, '_') || 'Event';
+      const fileName = `${eventName}_Attendees_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+      XLSX.writeFile(workbook, fileName);
+      toast.success('Excel file downloaded successfully');
+    } catch (err) {
+      console.error('Error exporting Excel:', err);
+      toast.error('Failed to export Excel file');
+    }
+  }, [filteredAttendees, eventInfo.title]);
+
   if (isInitialLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -540,21 +585,41 @@ export const ManageAttendeesDetailPage = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <div className="bg-blue-600 rounded-xl shadow-lg p-6 text-white">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Attendees Management</h1>
-            <p className="text-gray-600 mt-1">
-              {eventInfo.title || '—'}
-              {eventInfo.start_time ? ` • ${formatDateTime(eventInfo.start_time)}` : ''}
-            </p>
-            {eventInfo.location && (
-              <p className="text-gray-500 text-sm mt-1">{eventInfo.location}</p>
-            )}
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-white/20 rounded-lg">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <h1 className="text-2xl font-bold">Attendees Management</h1>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-blue-100">
+              <span className="font-medium text-white">{eventInfo.title || '—'}</span>
+              {eventInfo.start_time && (
+                <span className="flex items-center gap-1">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  {formatDateTime(eventInfo.start_time)}
+                </span>
+              )}
+              {eventInfo.location && (
+                <span className="flex items-center gap-1">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  {eventInfo.location}
+                </span>
+              )}
+            </div>
           </div>
           <button
             onClick={() => navigate('/manage-attendees')}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors text-white font-medium"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -644,81 +709,40 @@ export const ManageAttendeesDetailPage = () => {
         </div>
         
         <div className="max-w-2xl mx-auto">
-          {/* QR Code Scanner View */}
+          {/* Scanner Launch Card */}
           <div className="mb-6">
-            {scanning && showScanner ? (
-              <div className="relative w-full aspect-square max-w-md mx-auto bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl overflow-hidden shadow-2xl">
-                {/* Camera View */}
-                <div id="qr-reader" className="w-full h-full"></div>
-                
-                {/* Overlay with instructions */}
-                <div className="absolute inset-0 pointer-events-none">
-                  {/* Viewfinder frame overlay */}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-64 h-64 border-4 border-blue-500 rounded-lg shadow-lg relative">
-                      {/* Corner decorations */}
-                      <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-blue-400 rounded-tl-lg"></div>
-                      <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-blue-400 rounded-tr-lg"></div>
-                      <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-blue-400 rounded-bl-lg"></div>
-                      <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-blue-400 rounded-br-lg"></div>
-                    </div>
+            <div 
+              className="relative w-full aspect-square max-w-md mx-auto bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl overflow-hidden shadow-lg border-2 border-blue-200 cursor-pointer hover:shadow-xl transition-all duration-300 group"
+              onClick={handleScanQRCode}
+            >
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-8">
+                {/* QR Code Icon */}
+                <div className="relative mb-6">
+                  <div className="w-32 h-32 bg-white rounded-2xl shadow-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                    <svg className="w-20 h-20 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v1m6 0h.01M12 12v4m0 4h.01M12 12h.01M5 19h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
                   </div>
-                  
-                  {/* Instructions */}
-                  <div className="absolute bottom-8 left-0 right-0 text-center px-4">
-                    <p className="text-white text-lg font-semibold mb-1">Position QR code in frame</p>
-                    <p className="text-gray-300 text-sm">Camera is active and scanning</p>
-                  </div>
-                  
-                  {/* Stop button */}
-                  <div className="absolute top-4 right-4">
-                    <button
-                      onClick={stopScanner}
-                      className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 pointer-events-auto transition-colors"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                      Stop
-                    </button>
-                  </div>
+                  {/* Decorative circles */}
+                  <div className="absolute -top-2 -right-2 w-6 h-6 bg-blue-400 rounded-full opacity-50 group-hover:opacity-75 transition-opacity"></div>
+                  <div className="absolute -bottom-2 -left-2 w-4 h-4 bg-indigo-400 rounded-full opacity-50 group-hover:opacity-75 transition-opacity"></div>
                 </div>
                 
+                {/* Text */}
+                <h3 className="text-xl font-bold text-gray-800 mb-2 group-hover:text-blue-700 transition-colors">
+                  Ready to Scan
+                </h3>
+                <p className="text-gray-600 text-center text-sm mb-4">
+                  Click here or use the button below to start scanning QR codes
+                </p>
+                
+                {/* Decorative pattern */}
+                <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-blue-100/50 to-transparent"></div>
               </div>
-            ) : (
-              <div 
-                className="relative w-full aspect-square max-w-md mx-auto bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl overflow-hidden shadow-lg border-2 border-blue-200 cursor-pointer hover:shadow-xl transition-all duration-300 group"
-                onClick={handleScanQRCode}
-              >
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-8">
-                  {/* QR Code Icon */}
-                  <div className="relative mb-6">
-                    <div className="w-32 h-32 bg-white rounded-2xl shadow-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                      <svg className="w-20 h-20 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v1m6 0h.01M12 12v4m0 4h.01M12 12h.01M5 19h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                    {/* Decorative circles */}
-                    <div className="absolute -top-2 -right-2 w-6 h-6 bg-blue-400 rounded-full opacity-50 group-hover:opacity-75 transition-opacity"></div>
-                    <div className="absolute -bottom-2 -left-2 w-4 h-4 bg-indigo-400 rounded-full opacity-50 group-hover:opacity-75 transition-opacity"></div>
-                  </div>
-                  
-                  {/* Text */}
-                  <h3 className="text-xl font-bold text-gray-800 mb-2 group-hover:text-blue-700 transition-colors">
-                    Ready to Scan
-                  </h3>
-                  <p className="text-gray-600 text-center text-sm mb-4">
-                    Click here or use the button below to start scanning QR codes
-                  </p>
-                  
-                  {/* Decorative pattern */}
-                  <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-blue-100/50 to-transparent"></div>
-                </div>
-              </div>
-            )}
+            </div>
             
             {/* Error message */}
-            {scannerError && (
+            {scannerError && !showScanner && (
               <div className="mt-4 bg-red-50 border-2 border-red-200 rounded-xl p-6">
                 <div className="flex items-start gap-4">
                   <div className="flex-shrink-0">
@@ -767,32 +791,79 @@ export const ManageAttendeesDetailPage = () => {
             )}
           </div>
 
-          {/* Scan Button */}
-          <div className="mb-6">
-            {scanning && showScanner ? (
-              <button
-                onClick={stopScanner}
-                className="w-full bg-red-600 hover:bg-red-700 text-white px-6 py-4 rounded-xl transition-all duration-200 text-lg font-semibold shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                Stop
-              </button>
-            ) : (
-              <button
-                onClick={handleScanQRCode}
-                disabled={scanning}
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-4 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-lg font-semibold shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                Start Camera Scanner
-              </button>
-            )}
-          </div>
+          {/* QR Scanner Popup Modal */}
+          {showScanner && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+              <div className="relative w-full max-w-2xl mx-4 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl overflow-hidden shadow-2xl">
+                {/* Modal Header */}
+                <div className="flex items-center justify-between p-4 border-b border-gray-700">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-600 rounded-lg">
+                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 0h.01M12 12v4m0 4h.01M12 12h.01M5 19h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white">QR Code Scanner</h3>
+                      <p className="text-gray-400 text-sm">Position the QR code within the frame</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={stopScanner}
+                    className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+                  >
+                    <svg className="w-6 h-6 text-gray-400 hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                
+                {/* Camera View - Same aspect-square as original */}
+                <div className="relative w-full aspect-square max-w-md mx-auto m-4 bg-black rounded-xl overflow-hidden">
+                  <div id="qr-reader" className="w-full h-full"></div>
+                  
+                  {/* Overlay with instructions */}
+                  <div className="absolute inset-0 pointer-events-none">
+                    {/* Viewfinder frame overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-64 h-64 border-4 border-blue-500 rounded-lg shadow-lg relative">
+                        {/* Corner decorations */}
+                        <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-blue-400 rounded-tl-lg"></div>
+                        <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-blue-400 rounded-tr-lg"></div>
+                        <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-blue-400 rounded-bl-lg"></div>
+                        <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-blue-400 rounded-br-lg"></div>
+                      </div>
+                    </div>
+                    
+                    {/* Instructions */}
+                    <div className="absolute bottom-4 left-0 right-0 text-center px-4">
+                      <p className="text-white text-lg font-semibold mb-1">Position QR code in frame</p>
+                      <p className="text-gray-300 text-sm">Camera is active and scanning</p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Modal Footer */}
+                <div className="p-4 border-t border-gray-700 bg-gray-800/50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-green-400">
+                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                      <span className="text-sm font-medium">Camera active - scanning...</span>
+                    </div>
+                    <button
+                      onClick={stopScanner}
+                      className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Close Scanner
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Divider */}
           <div className="relative mb-6">
@@ -847,83 +918,157 @@ export const ManageAttendeesDetailPage = () => {
       </div>
 
       {/* Attendee List Section */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="mb-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Attendee List</h2>
-          <p className="text-gray-600 text-sm">View and manage all registered attendees</p>
-        </div>
-
-        {/* Search and Filters */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <div className="flex-1">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        {/* Section Header */}
+        <div className="px-6 py-5 border-b border-gray-200 bg-gray-50/50">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Attendee List</h2>
+              <p className="text-gray-500 text-sm mt-1">
+                {filteredAttendees.length} {filteredAttendees.length === 1 ? 'attendee' : 'attendees'} found
+              </p>
+            </div>
+            
+            {/* Search and Filters */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search by name, email..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="block w-full sm:w-56 pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                />
               </div>
-              <input
-                type="text"
-                placeholder="Search attendees..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+              
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              >
+                <option value="all">All Status</option>
+                {statusOptions
+                  .filter((status) => status !== 'all')
+                  .map((status) => (
+                    <option key={status} value={status}>
+                      {renderStatusLabel(status)}
+                    </option>
+                  ))}
+              </select>
+              
+              <button
+                onClick={handleDownloadExcel}
+                disabled={!hasData}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Export
+              </button>
             </div>
           </div>
-          
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="all">All Status</option>
-            {statusOptions
-              .filter((status) => status !== 'all')
-              .map((status) => (
-                <option key={status} value={status}>
-                  {renderStatusLabel(status)}
-                </option>
-              ))}
-          </select>
         </div>
 
         {/* Attendees Table */}
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registered At</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registration ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+          <table className="min-w-full">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Attendee</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Contact</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Registered</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Ticket ID</th>
+                <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="divide-y divide-gray-100">
               {hasData ? (
-                filteredAttendees.map((attendee) => (
-                  <tr key={attendee.registration_id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{attendee.name || '—'}</div>
+                filteredAttendees.map((attendee, index) => (
+                  <tr 
+                    key={attendee.registration_id} 
+                    className={`hover:bg-blue-50/50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
+                  >
+                    {/* Attendee Info with Avatar */}
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+                          {attendee.name ? attendee.name.charAt(0).toUpperCase() : '?'}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 truncate">{attendee.name || '—'}</p>
+                          <p className="text-xs text-gray-500 truncate">{attendee.email || '—'}</p>
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{attendee.email || '—'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{attendee.contact || '—'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{formatDateTime(attendee.registered_at)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(attendee.status)}`}>
+                    
+                    {/* Contact */}
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                        <span className="text-sm text-gray-600">{attendee.contact || '—'}</span>
+                      </div>
+                    </td>
+                    
+                    {/* Registered At */}
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span className="text-sm text-gray-600">{formatDateTime(attendee.registered_at)}</span>
+                      </div>
+                    </td>
+                    
+                    {/* Status */}
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full ${getStatusBadge(attendee.status)}`}>
+                        {attendee.status === 'CHECKED_IN' && (
+                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                        {attendee.status === 'NOT_CHECKED_IN' && (
+                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                          </svg>
+                        )}
                         {renderStatusLabel(attendee.status)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{attendee.registration_id}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    
+                    {/* Ticket ID */}
+                    <td className="px-6 py-4">
+                      <div className="relative group/tooltip">
+                        <code className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded font-mono cursor-help">
+                          {attendee.registration_id?.slice(0, 8)}...
+                        </code>
+                        {/* Tooltip */}
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 whitespace-nowrap z-10">
+                          {attendee.registration_id}
+                          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                        </div>
+                      </div>
+                    </td>
+                    
+                    {/* Actions */}
+                    <td className="px-6 py-4 text-right">
                       <button
                         onClick={() => handleDeleteAttendee(attendee.registration_id)}
                         disabled={deleteMutation.isPending}
-                        className="text-red-600 hover:text-red-800 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 hover:text-white hover:bg-red-600 border border-red-200 hover:border-red-600 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
                         {deleteMutation.isPending ? 'Removing...' : 'Remove'}
                       </button>
                     </td>
@@ -931,8 +1076,20 @@ export const ManageAttendeesDetailPage = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-sm text-gray-500">
-                    {isFetching ? 'Loading attendees...' : 'No attendees found for this event.'}
+                  <td colSpan={6} className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center">
+                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                        <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                      </div>
+                      <p className="text-gray-500 font-medium">
+                        {isFetching ? 'Loading attendees...' : 'No attendees found'}
+                      </p>
+                      <p className="text-gray-400 text-sm mt-1">
+                        {!isFetching && searchTerm ? 'Try adjusting your search' : ''}
+                      </p>
+                    </div>
                   </td>
                 </tr>
               )}

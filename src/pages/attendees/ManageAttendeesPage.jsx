@@ -135,20 +135,20 @@ export const ManageAttendeesPage = () => {
           </div>
 
           {/* Checked In Card */}
-          <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-6 text-white hover:shadow-lg hover:shadow-emerald-500/25 transition-all group">
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-lg hover:border-blue-200 transition-all group">
             <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-white/20 rounded-xl group-hover:scale-110 transition-transform">
-                <UserCheck className="w-6 h-6" />
+              <div className="p-3 bg-blue-100 rounded-xl group-hover:scale-110 transition-transform">
+                <UserCheck className="w-6 h-6 text-blue-600" />
               </div>
-              <div className="text-emerald-200 text-sm font-medium">
+              <div className="text-blue-600 text-sm font-medium">
                 {totalRegistered > 0 ? Math.round((totalCheckedIn / totalRegistered) * 100) : 0}%
               </div>
             </div>
-            <p className="text-3xl font-bold mb-1">{totalCheckedIn}</p>
-            <p className="text-emerald-100 font-medium">Checked In</p>
-            <div className="mt-3 h-1.5 bg-white/20 rounded-full overflow-hidden">
+            <p className="text-3xl font-bold text-gray-900 mb-1">{totalCheckedIn}</p>
+            <p className="text-gray-500 font-medium">Checked In</p>
+            <div className="mt-3 h-1.5 bg-blue-100 rounded-full overflow-hidden">
               <div 
-                className="h-full bg-white/60 rounded-full transition-all duration-500" 
+                className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full transition-all duration-500" 
                 style={{ width: `${totalRegistered > 0 ? (totalCheckedIn / totalRegistered) * 100 : 0}%` }} 
               />
             </div>

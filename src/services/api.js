@@ -51,10 +51,10 @@ api.interceptors.response.use(
     // But exclude login/register endpoints as they return 401 for invalid credentials
     if (error.response?.status === 401) {
       const requestUrl = error.config?.url || '';
-      const isAuthEndpoint = requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register');
+      const isAuthEndpoint = requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register') || requestUrl.includes('/auth/logout');
       const isPublicEndpoint = requestUrl.includes('/invite/validate') || requestUrl.includes('/invite/accept');
       
-      // Only show token expiration message for authenticated requests, not for login/register failures or public endpoints
+      // Only show token expiration message for authenticated requests, not for login/register/logout failures or public endpoints
       if (!isAuthEndpoint && !isPublicEndpoint && !isRedirecting) {
         isRedirecting = true;
         removeAccessToken();

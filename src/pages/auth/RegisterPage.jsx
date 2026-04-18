@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import Logo from '@/assets/icons/MPR Smart Event.png';
 
 export const RegisterPage = () => {
   const [formData, setFormData] = useState({
@@ -13,6 +14,7 @@ export const RegisterPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
 
@@ -34,17 +36,8 @@ export const RegisterPage = () => {
       const result = await register(formData);
       
       if (result.success) {
-        // Small delay to ensure token is stored
-        setTimeout(() => {
-          const token = localStorage.getItem('accessToken');
-          if (token) {
-            navigate('/', { replace: true });
-          } else {
-            // Still navigate if register was successful (token might be in cookie)
-            console.warn('No token in localStorage, but registration was successful. Navigating anyway.');
-            navigate('/', { replace: true });
-          }
-        }, 50);
+        setIsLoading(false);
+        setShowVerificationModal(true);
       } else {
         setError(result.error || 'Registration failed. Please try again.');
         setIsLoading(false);
@@ -122,12 +115,8 @@ export const RegisterPage = () => {
         <div className="w-full max-w-md">
           {/* Logo for mobile */}
           <div className="lg:hidden mb-8 text-center">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl shadow-lg flex items-center justify-center mx-auto mb-4">
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-              </svg>
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900">EventPlatform</h1>
+            <img src={Logo} alt="MPR Smart Event" className="w-16 h-16 rounded-2xl shadow-lg mx-auto mb-4 object-contain" />
+            <h1 className="text-3xl font-bold text-gray-900">MPR Smart Event</h1>
           </div>
 
           {/* Register Card */}
@@ -363,6 +352,44 @@ export const RegisterPage = () => {
           </div>
         </div>
       </div>
+      {/* Email Verification Modal */}
+      {showVerificationModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 transform animate-in fade-in zoom-in duration-200">
+            <div className="text-center">
+              <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">Verify Your Email</h3>
+              <p className="text-gray-600 mb-6">
+                We've sent a verification link to <span className="font-semibold text-gray-900">{formData.email}</span>. 
+                Please check your inbox and click the link to verify your email address before logging in.
+              </p>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+                <div className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <p className="text-sm text-amber-800 text-left">
+                    Don't forget to check your spam folder if you don't see the email in your inbox.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate('/login')}
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+              >
+                <span>Go to Login</span>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

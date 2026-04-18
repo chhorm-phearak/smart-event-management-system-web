@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import Logo from '@/assets/icons/MPR Smart Event.png';
 
 export const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -23,12 +24,16 @@ export const LoginPage = () => {
         // Small delay to ensure token is stored
         setTimeout(() => {
           const token = localStorage.getItem('accessToken');
+          const userData = result.data?.data?.user || result.data?.user || {};
+          const isOrganizer = !!(userData.organization_id ?? userData.organizationId ?? userData.organization?.id);
+          const redirectPath = isOrganizer ? '/' : '/all-events';
+          
           if (token) {
-            navigate('/', { replace: true });
+            navigate(redirectPath, { replace: true });
           } else {
             // Still navigate if login was successful (token might be in cookie)
             console.warn('No token in localStorage, but login was successful. Navigating anyway.');
-            navigate('/', { replace: true });
+            navigate(redirectPath, { replace: true });
           }
         }, 50);
       } else {
@@ -108,12 +113,8 @@ export const LoginPage = () => {
         <div className="w-full max-w-md">
           {/* Logo for mobile */}
           <div className="lg:hidden mb-8 text-center">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl shadow-lg flex items-center justify-center mx-auto mb-4">
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900">EventPlatform</h1>
+            <img src={Logo} alt="MPR Smart Event" className="w-16 h-16 rounded-2xl shadow-lg mx-auto mb-4 object-contain" />
+            <h1 className="text-3xl font-bold text-gray-900">MPR Smart Event</h1>
           </div>
 
           {/* Login Card */}

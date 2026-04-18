@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { eventService } from '@/services';
+import { useAuth } from '@/context/AuthContext';
 import {
   Search,
   Calendar,
@@ -221,8 +222,48 @@ const CATEGORIES = ['All', 'Technology', 'Business', 'Education', 'Entertainment
 const DATE_FILTERS = ['All', 'Today', 'This Week', 'This Month', 'Upcoming'];
 const ITEMS_PER_PAGE = 12;
 
+// Organization Required Modal
+const OrganizationRequiredModal = ({ isOpen, onClose, onRegister }) => {
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="text-center">
+          <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <svg className="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h3 className="text-2xl font-bold text-gray-900 mb-3">Organization Required</h3>
+          <p className="text-gray-500 mb-8">
+            You need to register as an organization to create events. Join as an organizer to unlock this feature and start hosting amazing events!
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 px-5 py-3 border-2 border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onRegister}
+              className="flex-1 px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/25 hover:shadow-xl transition-all"
+            >
+              Register Organization
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const AllEventsPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isOrganizer = !!(user?.organization_id ?? user?.organizationId ?? user?.organization?.id);
+  const [showOrgRequiredModal, setShowOrgRequiredModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedDate, setSelectedDate] = useState('all');
@@ -429,7 +470,7 @@ export const AllEventsPage = () => {
             
             <div className="relative z-10 flex flex-wrap items-center gap-4">
               <button
-                onClick={() => navigate('/create-event')}
+                onClick={() => isOrganizer ? navigate('/create-event') : setShowOrgRequiredModal(true)}
                 className="px-8 py-4 bg-white text-blue-600 font-semibold rounded-2xl hover:bg-blue-50 transition-all flex items-center gap-2 shadow-lg shadow-blue-900/20"
               >
                 <Plus className="w-5 h-5" />
@@ -596,7 +637,7 @@ export const AllEventsPage = () => {
               {hasActiveFilters ? 'Try adjusting your filters.' : 'Be the first to create an event!'}
             </p>
             <button
-              onClick={hasActiveFilters ? clearFilters : () => navigate('/create-event')}
+              onClick={hasActiveFilters ? clearFilters : () => isOrganizer ? navigate('/create-event') : setShowOrgRequiredModal(true)}
               className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all inline-flex items-center gap-2"
             >
               {hasActiveFilters ? 'Clear Filters' : <><Plus className="w-5 h-5" /> Create Event</>}
@@ -666,6 +707,16 @@ export const AllEventsPage = () => {
         selectedQRCode={selectedQRCode}
         onClose={() => setSelectedQRCode(null)}
         onDownload={handleDownloadQr}
+      />
+
+      {/* Organization Required Modal */}
+      <OrganizationRequiredModal
+        isOpen={showOrgRequiredModal}
+        onClose={() => setShowOrgRequiredModal(false)}
+        onRegister={() => {
+          setShowOrgRequiredModal(false);
+          navigate('/organization/register');
+        }}
       />
     </div>
   );

@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { getAccessToken, removeAccessToken } from '@/utils';
+import { getAccessToken, removeAccessToken, getOrganizationId, setOrganizationId, removeOrganizationId } from '@/utils';
 import { authService } from '@/services';
 
 const AuthContext = createContext(null);
@@ -21,7 +21,19 @@ export const AuthProvider = ({ children }) => {
           console.log('Profile API Response:', profileData); // Debug log
           const userData = profileData?.data?.user || profileData?.user || profileData;
           console.log('Extracted User Data:', userData); // Debug log
-          if (userData) setUser(userData);
+          if (userData) {
+            // Store organization_id in localStorage if available
+            const orgId = userData.organization_id ?? userData.organizationId ?? userData.organization?.id;
+            if (orgId) {
+              setOrganizationId(orgId);
+            }
+            // Ensure user object has organization_id from localStorage as fallback
+            const storedOrgId = getOrganizationId();
+            if (storedOrgId && !userData.organization_id) {
+              userData.organization_id = storedOrgId;
+            }
+            setUser(userData);
+          }
         } catch {
           // Token may be invalid, keep user null
         }
@@ -38,6 +50,14 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(true);
       const userData = data?.data?.user || data?.user || { email };
       console.log('Login User Data:', userData); // Debug log
+      
+      // Store organization_id in localStorage if available
+      const orgId = userData.organization_id ?? userData.organizationId ?? userData.organization?.id;
+      if (orgId) {
+        setOrganizationId(orgId);
+        userData.organization_id = orgId;
+      }
+      
       setUser(userData);
       await queryClient.invalidateQueries({ predicate: () => true });
       
@@ -82,7 +102,9 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(false);
       setUser(null);
       removeAccessToken();
+      removeOrganizationId();
       queryClient.clear();
+      window.location.replace('/login');
     }
   };
 

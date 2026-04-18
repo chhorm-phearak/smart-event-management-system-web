@@ -20,7 +20,7 @@ import {
 
 export const DashboardPage = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalEvents: 0,
@@ -35,10 +35,25 @@ export const DashboardPage = () => {
     total: 0,
     totalPages: 0
   });
+  
+  const organizationId = user?.organization_id ?? user?.organizationId ?? user?.organization?.id ?? null;
 
   useEffect(() => {
-    fetchDashboardData();
-  }, [pagination.page]);
+    if (!authLoading && !organizationId) {
+      navigate('/all-events', { replace: true });
+    }
+  }, [authLoading, organizationId, navigate]);
+
+  const formatEventDate = (isoString) => {
+    if (!isoString) return '';
+    return new Date(isoString).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' });
+  };
+
+  const formatEventTime = (isoString) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -89,16 +104,15 @@ export const DashboardPage = () => {
     }
   };
 
-  const formatEventDate = (isoString) => {
-    if (!isoString) return '';
-    return new Date(isoString).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' });
-  };
+  useEffect(() => {
+    if (organizationId) {
+      fetchDashboardData();
+    }
+  }, [pagination.page, organizationId]);
 
-  const formatEventTime = (isoString) => {
-    if (!isoString) return '';
-    const date = new Date(isoString);
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-  };
+  if (authLoading || !organizationId) {
+    return null;
+  }
 
   const getUserDisplayName = () => {
     if (user?.first_name && user?.last_name) {

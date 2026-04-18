@@ -74,5 +74,17 @@ export const authService = {
     const response = await api.put('/auth/profile', profileData);
     return response.data;
   },
+
+  // Verify Email
+  verifyEmail: async (token) => {
+    const response = await api.get(`/auth/verify-email?token=${token}`);
+    return response.data;
+  },
+
+  // Resend Verification Email
+  resendVerification: async (email) => {
+    const response = await api.post('/auth/resend-verification', { email });
+    return response.data;
+  },
 };
 

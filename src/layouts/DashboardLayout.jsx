@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Outlet, Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import Logo from '@/assets/icons/MPR Smart Event.png';
 import { useSocket } from '@/hooks/useSocket';
 import { notificationService } from '@/services/notificationService';
 import toast from 'react-hot-toast';
@@ -13,6 +14,8 @@ export const DashboardLayout = () => {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
   const { onNotification } = useSocket();
+  
+  const isOrganizer = !!(user?.organization_id ?? user?.organizationId ?? user?.organization?.id);
 
   // Format timestamp to relative time
   const formatTime = (timestamp) => {
@@ -124,6 +127,7 @@ export const DashboardLayout = () => {
     { 
       path: '/', 
       label: 'Dashboard', 
+      organizerOnly: true,
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v6a2 2 0 002 2h10a2 2 0 002-2v-6" />
@@ -160,6 +164,7 @@ export const DashboardLayout = () => {
     { 
       path: '/manage-attendees', 
       label: 'Manage Attendees', 
+      organizerOnly: true,
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
@@ -169,6 +174,7 @@ export const DashboardLayout = () => {
     { 
       path: '/manage-events', 
       label: 'Manage Events', 
+      organizerOnly: true,
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -176,7 +182,7 @@ export const DashboardLayout = () => {
         </svg>
       )
     },
-  ];
+  ].filter(item => !item.organizerOnly || isOrganizer);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -185,13 +191,9 @@ export const DashboardLayout = () => {
         {/* Logo/Brand Section */}
         <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
           <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-200">
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            </div>
+            <img src={Logo} alt="MPR Smart Event" className="w-10 h-10 rounded-xl shadow-md group-hover:scale-110 transition-transform duration-200 object-contain" />
             <div className="flex flex-col">
-              <span className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors">EventPlatform</span>
+              <span className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors">MPR Smart Event</span>
               <span className="text-xs text-gray-600">Event Management</span>
             </div>
           </Link>

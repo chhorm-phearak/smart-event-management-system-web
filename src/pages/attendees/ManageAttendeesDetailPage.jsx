@@ -504,8 +504,8 @@ export const ManageAttendeesDetailPage = () => {
   };
 
   const deleteMutation = useMutation({
-    mutationFn: ({ eventId, registrationId }) =>
-      attendeeService.deleteAttendee(eventId, registrationId),
+    mutationFn: (registrationId) =>
+      attendeeService.deleteAttendee(registrationId),
     onSuccess: () => {
       toast.success('Attendee removed');
       refetch();
@@ -521,11 +521,11 @@ export const ManageAttendeesDetailPage = () => {
     if (!window.confirm('Remove this attendee from the event?')) {
       return;
     }
-    if (!id || !registrationId) {
+    if (!registrationId) {
       toast.error('Invalid attendee information');
       return;
     }
-    deleteMutation.mutate({ eventId: id, registrationId });
+    deleteMutation.mutate(registrationId);
   };
 
   const handleDownloadExcel = useCallback(() => {

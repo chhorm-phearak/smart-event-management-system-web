@@ -11,6 +11,21 @@ export const removeAccessToken = () => {
   localStorage.removeItem('accessToken');
 };
 
+// Organization ID storage utilities
+export const getOrganizationId = () => {
+  return localStorage.getItem('organizationId');
+};
+
+export const setOrganizationId = (id) => {
+  if (id) {
+    localStorage.setItem('organizationId', id);
+  }
+};
+
+export const removeOrganizationId = () => {
+  localStorage.removeItem('organizationId');
+};
+
 /** Backend origin for building full image URLs (e.g. for event images). */
 export const getApiOrigin = () => {
   if (import.meta.env.VITE_API_BASE_URL) {

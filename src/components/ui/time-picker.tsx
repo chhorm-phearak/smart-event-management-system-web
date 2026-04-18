@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -79,6 +80,20 @@ function TimePicker({
   "aria-invalid": ariaInvalid,
 }: TimePickerProps) {
   const [open, setOpen] = React.useState(false);
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
+  const [dropdownStyle, setDropdownStyle] = React.useState<React.CSSProperties>({});
+
+  React.useEffect(() => {
+    if (open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setDropdownStyle({
+        position: 'fixed',
+        top: rect.bottom + 8,
+        left: rect.left,
+        zIndex: 9999,
+      });
+    }
+  }, [open]);
   const parsed = parseValue(value);
   const [pendingHour12, setPendingHour12] = React.useState(parsed.hour12);
   const [pendingPeriod, setPendingPeriod] = React.useState<"AM" | "PM">(parsed.period);
@@ -146,6 +161,7 @@ function TimePicker({
       {/* Same style as date field: clickable trigger + icon */}
       <div className="relative">
         <button
+          ref={triggerRef}
           type="button"
           disabled={disabled}
           onClick={() => !disabled && setOpen(true)}
@@ -175,7 +191,8 @@ function TimePicker({
             aria-hidden="true"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute left-0 top-full z-50 mt-2 w-70 rounded-xl border border-border bg-card shadow-lg overflow-hidden">
+          {createPortal(
+          <div className="w-70 rounded-xl border border-border bg-card shadow-lg overflow-visible" style={dropdownStyle}>
             <div className="p-4 border-b border-border bg-muted/50">
               <h3 className="font-semibold text-sm">Select time</h3>
             </div>
@@ -190,7 +207,7 @@ function TimePicker({
                     <SelectTrigger className="h-9 w-full">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent position="popper" sideOffset={4}>
                       {hour12Options.map((h) => (
                         <SelectItem key={h} value={String(h)}>
                           {h}
@@ -208,7 +225,7 @@ function TimePicker({
                     <SelectTrigger className="h-9 w-full">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent position="popper" sideOffset={4}>
                       {minuteOptions.map((opt) => (
                         <SelectItem key={opt.value} value={opt.value}>
                           {opt.label}
@@ -226,7 +243,7 @@ function TimePicker({
                     <SelectTrigger className="h-9 w-full">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent position="popper" sideOffset={4}>
                       {PERIOD_OPTIONS.map((opt) => (
                         <SelectItem key={opt.value} value={opt.value}>
                           {opt.label}
@@ -245,7 +262,9 @@ function TimePicker({
                 Done
               </Button>
             </div>
-          </div>
+          </div>,
+          document.body
+          )}
         </>
       )}
     </div>

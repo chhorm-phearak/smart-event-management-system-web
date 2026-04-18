@@ -11,8 +11,8 @@ export const attendeeService = {
     return response.data;
   },
 
-  deleteAttendee: async (eventId, registrationId) => {
-    const response = await api.delete(`/attendees/${eventId}/attendees/${registrationId}`);
+  deleteAttendee: async (registrationId) => {
+    const response = await api.delete(`/events/registrations/${registrationId}`);
     return response.data;
   },
 

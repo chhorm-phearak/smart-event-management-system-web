@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { QRCodeSVG } from 'qrcode.react';
-import { ChevronLeft, Plus, X, Calendar as CalendarIcon, MapPin, Upload, Type, AlignLeft, Users, QrCode } from 'lucide-react';
+import { ChevronLeft, Plus, X, Calendar as CalendarIcon, MapPin, Upload, Type, AlignLeft, Users, QrCode, Clock, Tag, FileText, UserPlus, ListChecks, Sparkles, CheckCircle2, Image } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { eventService, organizationService, uploadSingle } from '@/services';
-import { getApiOrigin } from '@/utils';
+import { getApiOrigin, getOrganizationId } from '@/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -41,7 +41,7 @@ export const CreateEventPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const organizationId = user?.organization_id || null;
+  const organizationId = user?.organization_id ?? user?.organizationId ?? user?.organization?.id ?? getOrganizationId() ?? null;
   const [submitStatus, setSubmitStatus] = useState(null); // 'creating' | 'uploading'
   const [showStaffModal, setShowStaffModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState([]);
@@ -50,7 +50,7 @@ export const CreateEventPage = () => {
   const [createdEventId, setCreatedEventId] = useState(null);
   const [registeredQrCode, setRegisteredQrCode] = useState('');
 
-  const { data: staffListData, isLoading: staffLoading, isError: staffError } = useQuery({
+  const { data: staffListData, isLoading: staffLoading, isPending: staffPending, isError: staffError } = useQuery({
     queryKey: ['organization', organizationId, 'members'],
     queryFn: async () => {
       const { data } = await organizationService.getMembers(organizationId);
@@ -63,6 +63,7 @@ export const CreateEventPage = () => {
       }));
     },
     enabled: !!organizationId,
+    staleTime: 1000 * 60 * 5,
   });
   const staffList = staffListData ?? [];
 
@@ -218,12 +219,10 @@ export const CreateEventPage = () => {
       return eventId;
     },
     onSuccess: (eventId) => {
-      const normalizedEventId = extractEventId(eventId);
       setSubmitStatus(null);
-      toast.success('Event created successfully');
-      setCreatedEventId(normalizedEventId);
-      setRegisteredQrCode('');
+      toast.success('Event created successfully!');
       queryClient.invalidateQueries({ queryKey: ['events'] });
+      navigate(-1);
     },
     onError: (error) => {
       setSubmitStatus(null);
@@ -439,43 +438,80 @@ export const CreateEventPage = () => {
   const eventQrCode = registeredQrCode || createdEvent?.qrcode || createdEvent?.qr_code || '';
   const isEventRegistered = eventQrCode.trim() !== '';
 
+  // Form sections for step indicator
+  const formSections = [
+    { id: 'details', label: 'Event Details', icon: FileText },
+    { id: 'staff', label: 'Assign Staff', icon: UserPlus },
+    { id: 'datetime', label: 'Date & Time', icon: Clock },
+    { id: 'location', label: 'Location', icon: MapPin },
+    { id: 'agenda', label: 'Agenda', icon: ListChecks },
+  ];
+
   if (createdEventId) {
     return (
       <div className="w-full">
-        <div className="mb-6">
-          <Button type="button" size="sm" onClick={() => { setCreatedEventId(null); setRegisteredQrCode(''); setErrors({}); }} className="mb-4 bg-blue-600 text-white hover:bg-blue-700">
+        {/* Success Header */}
+        <div className="mb-8">
+          <Button 
+            type="button" 
+            size="sm" 
+            onClick={() => { setCreatedEventId(null); setRegisteredQrCode(''); setErrors({}); }} 
+            className="mb-6 gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/25 transition-all duration-300"
+          >
             <ChevronLeft className="size-4" />
             Back
           </Button>
-          <h1 className="text-3xl font-bold tracking-tight">Event Created</h1>
-          <p className="text-muted-foreground mt-1">Register your event to generate a QR code for check-in.</p>
+          
+          <div className="flex items-center gap-4 mb-2">
+            <div className="flex items-center justify-center size-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-600 shadow-lg shadow-emerald-500/30">
+              <CheckCircle2 className="size-7 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-emerald-600 to-green-600 bg-clip-text text-transparent">
+                Event Created Successfully!
+              </h1>
+              <p className="text-muted-foreground mt-1">Register your event to generate a QR code for check-in.</p>
+            </div>
+          </div>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <QrCode className="size-5" />
+        <Card className="overflow-hidden border-0 shadow-xl shadow-black/5 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-900/50">
+          <CardHeader className="bg-gradient-to-r from-violet-500/10 via-purple-500/10 to-fuchsia-500/10 border-b border-border/50">
+            <CardTitle className="flex items-center gap-3 text-lg">
+              <div className="flex items-center justify-center size-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 shadow-lg shadow-violet-500/30">
+                <QrCode className="size-5 text-white" />
+              </div>
               Event QR Code
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="p-8">
             {isEventRegistered ? (
-              <div className="flex flex-col items-center gap-4">
-                <div className="p-4 bg-white rounded-lg border border-border inline-block">
-                  <QRCodeSVG value={eventQrCode} size={200} level="M" />
+              <div className="flex flex-col items-center gap-6">
+                <div className="p-6 bg-white rounded-2xl border-2 border-dashed border-violet-200 shadow-inner">
+                  <QRCodeSVG value={eventQrCode} size={220} level="M" />
                 </div>
-                <p className="text-sm text-muted-foreground">Scan this QR code at the event entrance.</p>
+                <div className="text-center">
+                  <p className="text-sm font-medium text-foreground">QR Code Ready!</p>
+                  <p className="text-sm text-muted-foreground mt-1">Scan this QR code at the event entrance.</p>
+                </div>
               </div>
             ) : (
-              <div className="flex flex-col items-center gap-4">
-                <p className="text-muted-foreground text-center">This event is not registered yet. Register to generate a QR code.</p>
+              <div className="flex flex-col items-center gap-6 py-8">
+                <div className="flex items-center justify-center size-20 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700">
+                  <QrCode className="size-10 text-muted-foreground" />
+                </div>
+                <div className="text-center">
+                  <p className="font-medium text-foreground">No QR Code Yet</p>
+                  <p className="text-muted-foreground text-sm mt-1">Register your event to generate a QR code for attendees.</p>
+                </div>
                 <Button
                   type="button"
                   onClick={handleRegisterEvent}
                   disabled={registerEventMutation.isPending}
-                  className="bg-blue-600 text-white hover:bg-blue-700"
+                  className="gap-2 bg-gradient-to-r from-violet-600 to-purple-600 text-white hover:from-violet-700 hover:to-purple-700 shadow-lg shadow-violet-500/25 transition-all duration-300"
                 >
-                  {registerEventMutation.isPending ? 'Registering...' : 'Register event (get QR code)'}
+                  <Sparkles className="size-4" />
+                  {registerEventMutation.isPending ? 'Registering...' : 'Register & Generate QR Code'}
                 </Button>
                 {errors.register && (
                   <p className="text-sm text-destructive">{errors.register}</p>
@@ -485,12 +521,17 @@ export const CreateEventPage = () => {
           </CardContent>
         </Card>
 
-        <div className="flex justify-end gap-3 mt-6 pb-6">
-          <Button type="button" variant="outline" onClick={() => navigate(-1)}>
+        <div className="flex justify-end gap-3 mt-8 pb-6">
+          <Button type="button" variant="outline" onClick={() => navigate(-1)} className="px-6">
             Done
           </Button>
-          <Button type="button" className="bg-blue-600 text-white hover:bg-blue-700" onClick={() => { setCreatedEventId(null); setRegisteredQrCode(''); setErrors({}); }}>
-            Create another event
+          <Button 
+            type="button" 
+            className="gap-2 px-6 bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/25" 
+            onClick={() => { setCreatedEventId(null); setRegisteredQrCode(''); setErrors({}); }}
+          >
+            <Plus className="size-4" />
+            Create Another Event
           </Button>
         </div>
       </div>
@@ -500,16 +541,51 @@ export const CreateEventPage = () => {
   return (
     <div className="w-full">
       {/* Page Header with Back Button */}
-      <div className="mb-6">
-        <Button type="button" size="sm" onClick={() => navigate(-1)} className="mb-4 bg-blue-600 text-white hover:bg-blue-700">
+      <div className="mb-8">
+        <Button 
+          type="button" 
+          size="sm" 
+          onClick={() => navigate(-1)} 
+          className="mb-6 gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/25 transition-all duration-300"
+        >
           <ChevronLeft className="size-4" />
           Back
         </Button>
-        <h1 className="text-3xl font-bold tracking-tight">Create New Event</h1>
-        <p className="text-muted-foreground mt-1">Fill in the details to create and publish your event.</p>
+        
+        <div className="flex items-center gap-4 mb-6">
+          <div className="flex items-center justify-center size-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30">
+            <Sparkles className="size-7 text-white" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+              Create New Event
+            </h1>
+            <p className="text-muted-foreground mt-1">Fill in the details to create and publish your event.</p>
+          </div>
+        </div>
+
+        {/* Step Indicator */}
+        <div className="hidden md:flex items-center gap-1 bg-slate-100 dark:bg-slate-800/50 rounded-2xl p-4 border border-border/50 w-fit">
+          {formSections.map((section, index) => {
+            const Icon = section.icon;
+            return (
+              <div key={section.id} className="flex items-center">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center size-8 rounded-xl bg-blue-600 text-white shadow-md">
+                    <Icon className="size-4" />
+                  </div>
+                  <span className="text-sm font-medium text-foreground">{section.label}</span>
+                </div>
+                {index < formSections.length - 1 && (
+                  <div className="w-6 h-0.5 bg-blue-400 dark:bg-blue-600 mx-2 rounded-full" />
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-8">
         {errors.organization && (
           <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-lg">
             {errors.organization}
@@ -517,26 +593,31 @@ export const CreateEventPage = () => {
         )}
 
         {/* Event Details Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Event Details</CardTitle>
+        <Card className="overflow-hidden border-0 shadow-xl shadow-black/5 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-900/50 transition-all duration-300 hover:shadow-2xl hover:shadow-black/10">
+          <CardHeader className="bg-blue-50 dark:bg-blue-950/30 border-b border-border/50">
+            <CardTitle className="flex items-center gap-3 text-lg">
+              <div className="flex items-center justify-center size-10 rounded-xl bg-blue-600 shadow-lg shadow-blue-500/30">
+                <FileText className="size-5 text-white" />
+              </div>
+              Event Details
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="space-y-6 p-6">
             <div className="space-y-2">
-              <Label htmlFor="title">
+              <Label htmlFor="title" className="text-sm font-semibold flex items-center gap-2">
+                <Type className="size-4 text-blue-500" />
                 Event Title <span className="text-destructive">*</span>
               </Label>
-              <div className="relative">
-                <Type className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+              <div className="relative group">
                 <Input
                   id="title"
                   name="title"
                   value={formData.title}
                   onChange={handleChange}
-                  placeholder="Title of your event"
+                  placeholder="Enter an engaging title for your event"
                   maxLength={150}
                   className={cn(
-                    'h-10 pl-9',
+                    'h-12 text-base transition-all duration-300 border-2 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10',
                     errors.title && 'border-destructive aria-invalid:ring-destructive/20'
                   )}
                   aria-invalid={!!errors.title}
@@ -544,36 +625,38 @@ export const CreateEventPage = () => {
               </div>
               <div className="flex justify-between items-center gap-2">
                 {errors.title && <p className="text-sm text-destructive">{errors.title}</p>}
-                <p className="text-sm text-muted-foreground ml-auto">{formData.title.length}/150</p>
+                <p className={cn(
+                  "text-sm ml-auto transition-colors",
+                  formData.title.length > 130 ? "text-amber-500 font-medium" : "text-muted-foreground"
+                )}>{formData.title.length}/150</p>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="shortDescription">
+              <Label htmlFor="shortDescription" className="text-sm font-semibold flex items-center gap-2">
+                <AlignLeft className="size-4 text-blue-500" />
                 Short Description <span className="text-destructive">*</span>
               </Label>
-              <div className="relative">
-                <AlignLeft className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-                <Input
-                  id="shortDescription"
-                  name="shortDescription"
-                  value={formData.shortDescription}
-                  onChange={handleChange}
-                  placeholder="Brief tagline or summary"
-                  className={cn(
-                    'h-10 pl-9',
-                    errors.shortDescription && 'border-destructive aria-invalid:ring-destructive/20'
-                  )}
-                  aria-invalid={!!errors.shortDescription}
-                />
-              </div>
+              <Input
+                id="shortDescription"
+                name="shortDescription"
+                value={formData.shortDescription}
+                onChange={handleChange}
+                placeholder="A catchy tagline that captures your event's essence"
+                className={cn(
+                  'h-12 text-base transition-all duration-300 border-2 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10',
+                  errors.shortDescription && 'border-destructive aria-invalid:ring-destructive/20'
+                )}
+                aria-invalid={!!errors.shortDescription}
+              />
               {errors.shortDescription && (
                 <p className="text-sm text-destructive">{errors.shortDescription}</p>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">
+              <Label htmlFor="description" className="text-sm font-semibold flex items-center gap-2">
+                <FileText className="size-4 text-blue-500" />
                 Full Description <span className="text-destructive">*</span>
               </Label>
               <textarea
@@ -581,11 +664,11 @@ export const CreateEventPage = () => {
                 name="description"
                 value={formData.description}
                 onChange={handleChange}
-                placeholder="Full description of your event..."
-                rows={5}
+                placeholder="Describe your event in detail. What will attendees experience? What makes it special?"
+                rows={6}
                 className={cn(
-                  'flex min-h-30 w-full rounded-md border border-input bg-transparent px-3 py-2.5 text-sm shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 resize-none',
-                  errors.description && 'border-destructive ring-destructive/20'
+                  'flex min-h-36 w-full rounded-xl border-2 bg-transparent px-4 py-3 text-base shadow-xs transition-all duration-300 outline-none placeholder:text-muted-foreground focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:cursor-not-allowed disabled:opacity-50 resize-none',
+                  errors.description ? 'border-destructive ring-destructive/20' : 'border-input'
                 )}
                 aria-invalid={!!errors.description}
               />
@@ -595,19 +678,23 @@ export const CreateEventPage = () => {
             </div>
 
             <div className="space-y-2">
-              <Label>Event Image</Label>
+              <Label className="text-sm font-semibold flex items-center gap-2">
+                <Image className="size-4 text-blue-500" />
+                Event Image
+              </Label>
               {imagePreview ? (
-                <div className="relative">
+                <div className="relative group rounded-2xl overflow-hidden border border-border bg-slate-100 dark:bg-slate-800">
                   <img
                     src={imagePreview}
                     alt="Event preview"
-                    className="w-full h-64 object-cover rounded-lg border border-border"
+                    className="w-full h-72 object-contain transition-transform duration-500 group-hover:scale-105"
                   />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   <Button
                     type="button"
                     variant="destructive"
                     size="icon"
-                    className="absolute top-2 right-2"
+                    className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 shadow-lg"
                     onClick={() => {
                       setImagePreview(null);
                       setFormData((prev) => ({ ...prev, image: null }));
@@ -615,15 +702,20 @@ export const CreateEventPage = () => {
                   >
                     <X className="size-4" />
                   </Button>
+                  <div className="absolute bottom-3 left-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                    <p className="text-white text-sm font-medium">Image uploaded successfully</p>
+                  </div>
                 </div>
               ) : (
-                <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-input rounded-lg cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors">
-                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                    <Upload className="size-10 mb-3 text-muted-foreground" />
-                    <p className="mb-2 text-sm text-muted-foreground">
-                      <span className="font-semibold">Click to upload</span> or drag and drop
+                <label className="flex flex-col items-center justify-center w-full h-72 border-2 border-dashed border-blue-200 dark:border-blue-900/50 rounded-2xl cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-all duration-300 group">
+                  <div className="flex flex-col items-center justify-center py-8">
+                    <div className="flex items-center justify-center size-16 rounded-2xl bg-blue-100 dark:bg-blue-900/30 mb-4 group-hover:scale-110 transition-transform duration-300">
+                      <Upload className="size-8 text-blue-500" />
+                    </div>
+                    <p className="mb-2 text-base font-medium text-foreground">
+                      Drop your image here or <span className="text-blue-500">browse</span>
                     </p>
-                    <p className="text-xs text-muted-foreground">PNG, JPG, GIF up to 5MB</p>
+                    <p className="text-sm text-muted-foreground">PNG, JPG, GIF up to 5MB</p>
                   </div>
                   <input
                     type="file"
@@ -639,25 +731,38 @@ export const CreateEventPage = () => {
         </Card>
 
         {/* Assign Staff Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Assign Staff</CardTitle>
+        <Card className="overflow-hidden border-0 shadow-xl shadow-black/5 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-900/50 transition-all duration-300 hover:shadow-2xl hover:shadow-black/10">
+          <CardHeader className="bg-blue-50 dark:bg-blue-950/30 border-b border-border/50">
+            <CardTitle className="flex items-center gap-3 text-lg">
+              <div className="flex items-center justify-center size-10 rounded-xl bg-blue-600 shadow-lg shadow-blue-500/30">
+                <UserPlus className="size-5 text-white" />
+              </div>
+              Assign Staff
+              {selectedStaff.length > 0 && (
+                <span className="ml-auto text-sm font-normal px-3 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                  {selectedStaff.length} selected
+                </span>
+              )}
+            </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-6">
             {selectedStaff.length > 0 && (
-              <div className="mb-4 flex flex-wrap gap-2">
+              <div className="mb-5 flex flex-wrap gap-2">
                 {selectedStaff.map((staff) => (
                   <span
                     key={staff.user_id}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-secondary text-secondary-foreground rounded-full text-sm"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-xl text-sm font-medium border border-blue-200 dark:border-blue-800 shadow-sm"
                   >
-                    {staff.name} {staff.role && `(${staff.role})`}
+                    <div className="size-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">
+                      {staff.name.charAt(0).toUpperCase()}
+                    </div>
+                    {staff.name} {staff.role && <span className="text-blue-500">• {staff.role}</span>}
                     <button
                       type="button"
                       onClick={() => handleStaffToggle(staff)}
-                      className="rounded-full hover:bg-muted p-0.5"
+                      className="rounded-full hover:bg-blue-200 dark:hover:bg-blue-800 p-1 transition-colors ml-1"
                     >
-                      <X className="size-4" />
+                      <X className="size-3.5" />
                     </button>
                   </span>
                 ))}
@@ -666,16 +771,20 @@ export const CreateEventPage = () => {
             <Button
               type="button"
               variant="outline"
-              className="w-full border-dashed"
+              className="w-full h-14 border-2 border-dashed border-blue-200 dark:border-blue-800 hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-950/30 transition-all duration-300 group"
               onClick={() => setShowStaffModal(true)}
-              disabled={!organizationId || staffLoading}
+              disabled={!organizationId || (staffLoading && !staffListData)}
               title={!organizationId ? 'Organization required' : undefined}
             >
-              <Plus className="size-4" />
-              {staffLoading ? 'Loading staff...' : 'Assign staff to support your event'}
+              <div className="flex items-center justify-center size-8 rounded-lg bg-blue-100 dark:bg-blue-900/50 mr-3 group-hover:scale-110 transition-transform duration-300">
+                <Plus className="size-4 text-blue-600" />
+              </div>
+              <span className="text-muted-foreground group-hover:text-foreground transition-colors">
+                {(staffLoading && !staffListData) ? 'Loading staff...' : 'Click to assign staff members'}
+              </span>
             </Button>
             {(errors.staff || staffError) && (
-              <p className="text-sm text-destructive mt-2">
+              <p className="text-sm text-destructive mt-3">
                 {errors.staff || 'Failed to load organization members'}
               </p>
             )}
@@ -683,18 +792,24 @@ export const CreateEventPage = () => {
         </Card>
 
         {/* Event Date and Time Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Event Date and Time</CardTitle>
+        <Card className="border-0 shadow-xl shadow-black/5 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-900/50 transition-all duration-300 hover:shadow-2xl hover:shadow-black/10">
+          <CardHeader className="bg-blue-50 dark:bg-blue-950/30 border-b border-border/50">
+            <CardTitle className="flex items-center gap-3 text-lg">
+              <div className="flex items-center justify-center size-10 rounded-xl bg-blue-600 shadow-lg shadow-blue-500/30">
+                <Clock className="size-5 text-white" />
+              </div>
+              Event Date & Time
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <CardContent className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Event Date with calendar picker */}
               <div className="md:col-span-1 relative space-y-2">
-                <Label htmlFor="eventDate">
+                <Label htmlFor="eventDate" className="text-sm font-semibold flex items-center gap-2">
+                  <CalendarIcon className="size-4 text-blue-500" />
                   Event Date <span className="text-destructive">*</span>
                 </Label>
-                <div className="relative">
+                <div className="relative group">
                   <Input
                     id="eventDate"
                     name="eventDate"
@@ -703,91 +818,94 @@ export const CreateEventPage = () => {
                     placeholder="Select date"
                     onClick={() => setShowCalendar(true)}
                     className={cn(
-                      'h-10 cursor-pointer pr-9',
+                      'h-12 cursor-pointer pr-12 text-base transition-all duration-300 border-2 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10',
                       errors.eventDate && 'border-destructive aria-invalid:ring-destructive/20'
                     )}
                     aria-invalid={!!errors.eventDate}
                   />
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-muted-foreground">
-                    <CalendarIcon className="size-4" />
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                    <div className="flex items-center justify-center size-8 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                      <CalendarIcon className="size-4 text-blue-600" />
+                    </div>
                   </div>
                 </div>
                 {errors.eventDate && <p className="text-sm text-destructive">{errors.eventDate}</p>}
 
-              {/* Calendar dropdown */}
-              {showCalendar && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40"
-                    aria-hidden="true"
-                    onClick={() => setShowCalendar(false)}
-                  />
-                  <div className="absolute left-0 top-full mt-2 z-50 w-[320px] rounded-xl shadow-lg border border-border bg-card overflow-hidden">
-                    <div className="p-4 border-b border-border bg-muted/50">
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="font-semibold">{monthLabel}</h3>
-                        <div className="flex items-center gap-1">
-                          <Button type="button" variant="ghost" size="icon-sm" onClick={goPrevMonth} aria-label="Previous month">
-                            <ChevronLeft className="size-4" />
-                          </Button>
-                          <Button type="button" variant="ghost" size="icon-sm" onClick={goNextMonth} aria-label="Next month">
-                            <ChevronLeft className="size-4 rotate-180" />
-                          </Button>
+                {/* Calendar dropdown */}
+                {showCalendar && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
+                      aria-hidden="true"
+                      onClick={() => setShowCalendar(false)}
+                    />
+                    <div className="absolute left-0 top-full mt-2 z-50 w-[340px] rounded-2xl shadow-2xl border border-border bg-card overflow-hidden">
+                      <div className="p-5 border-b border-border bg-blue-50 dark:bg-blue-950/30">
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="font-bold text-lg">{monthLabel}</h3>
+                          <div className="flex items-center gap-1">
+                            <Button type="button" variant="ghost" size="icon-sm" onClick={goPrevMonth} aria-label="Previous month" className="hover:bg-blue-100 dark:hover:bg-blue-900/30">
+                              <ChevronLeft className="size-4" />
+                            </Button>
+                            <Button type="button" variant="ghost" size="icon-sm" onClick={goNextMonth} aria-label="Next month" className="hover:bg-blue-100 dark:hover:bg-blue-900/30">
+                              <ChevronLeft className="size-4 rotate-180" />
+                            </Button>
+                          </div>
+                        </div>
+                        <Button type="button" variant="link" size="sm" className="h-auto p-0 text-blue-600 hover:text-blue-700" onClick={goToToday}>
+                          Go to today
+                        </Button>
+                      </div>
+                      <div className="p-5">
+                        <div className="grid grid-cols-7 gap-1 mb-3">
+                          {weekDays.map((day) => (
+                            <div key={day} className="text-center text-xs font-semibold text-muted-foreground py-2">
+                              {day}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="grid grid-cols-7 gap-1">
+                          {calendarDays.map((cell, idx) => {
+                            const ymd = toYMD(cell.year, cell.month, cell.date);
+                            const selected = formData.eventDate === ymd;
+                            const past = isPastDate(cell.year, cell.month, cell.date);
+                            const today = isToday(cell.year, cell.month, cell.date);
+                            return (
+                              <button
+                                key={idx}
+                                type="button"
+                                disabled={past}
+                                onClick={() => {
+                                  if (!past) {
+                                    handleCalendarSelect(cell.year, cell.month, cell.date);
+                                    setShowCalendar(false);
+                                  }
+                                }}
+                                className={cn(
+                                  'aspect-square flex items-center justify-center text-sm rounded-xl transition-all duration-200 font-medium',
+                                  !cell.isCurrentMonth && 'text-muted-foreground/40',
+                                  past && cell.isCurrentMonth && 'text-muted-foreground/40 cursor-not-allowed',
+                                  !past && cell.isCurrentMonth && 'hover:bg-blue-100 dark:hover:bg-blue-900/30',
+                                  selected && 'bg-blue-600 text-white shadow-lg shadow-blue-500/30 hover:bg-blue-700',
+                                  today && !selected && 'ring-2 ring-blue-500 ring-offset-2'
+                                )}
+                              >
+                                {cell.date}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
-                      <Button type="button" variant="link" size="sm" className="h-auto p-0 text-primary" onClick={goToToday}>
-                        Go to today
-                      </Button>
                     </div>
-                    <div className="p-4">
-                      <div className="grid grid-cols-7 gap-0.5 mb-2">
-                        {weekDays.map((day) => (
-                          <div key={day} className="text-center text-xs font-medium text-muted-foreground py-1">
-                            {day}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="grid grid-cols-7 gap-0.5">
-                        {calendarDays.map((cell, idx) => {
-                          const ymd = toYMD(cell.year, cell.month, cell.date);
-                          const selected = formData.eventDate === ymd;
-                          const past = isPastDate(cell.year, cell.month, cell.date);
-                          const today = isToday(cell.year, cell.month, cell.date);
-                          return (
-                            <button
-                              key={idx}
-                              type="button"
-                              disabled={past}
-                              onClick={() => {
-                                if (!past) {
-                                  handleCalendarSelect(cell.year, cell.month, cell.date);
-                                  setShowCalendar(false);
-                                }
-                              }}
-                              className={cn(
-                                'aspect-square flex items-center justify-center text-sm rounded-md transition-colors',
-                                !cell.isCurrentMonth && 'text-muted-foreground/50',
-                                past && cell.isCurrentMonth && 'text-muted-foreground/50 cursor-not-allowed',
-                                !past && cell.isCurrentMonth && 'hover:bg-accent',
-                                selected && 'bg-primary text-primary-foreground hover:bg-primary/90',
-                                today && !selected && 'ring-2 ring-ring ring-offset-2'
-                              )}
-                            >
-                              {cell.date}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
+                  </>
+                )}
+              </div>
 
               {/* Start Time */}
               <div className="space-y-2">
-                <Label htmlFor="startTime">
-                  Start time <span className="text-destructive">*</span>
+                <Label htmlFor="startTime" className="text-sm font-semibold flex items-center gap-2">
+                  <Clock className="size-4 text-blue-500" />
+                  Start Time <span className="text-destructive">*</span>
                 </Label>
                 <TimePicker
                   value={formData.startTime}
@@ -800,7 +918,7 @@ export const CreateEventPage = () => {
                     if (errors.startTime) setErrors((e) => ({ ...e, startTime: '' }));
                   }}
                   placeholder="Select start time"
-                  className={cn(errors.startTime && '[&_button]:border-destructive')}
+                  className={cn('h-12 [&_button]:h-12 [&_button]:border-2 [&_button]:transition-all [&_button]:duration-300', errors.startTime && '[&_button]:border-destructive')}
                   aria-invalid={!!errors.startTime}
                 />
                 {errors.startTime && <p className="text-sm text-destructive">{errors.startTime}</p>}
@@ -808,8 +926,9 @@ export const CreateEventPage = () => {
 
               {/* End Time */}
               <div className="space-y-2">
-                <Label htmlFor="endTime">
-                  End time <span className="text-destructive">*</span>
+                <Label htmlFor="endTime" className="text-sm font-semibold flex items-center gap-2">
+                  <Clock className="size-4 text-blue-500" />
+                  End Time <span className="text-destructive">*</span>
                 </Label>
                 <TimePicker
                   value={formData.endTime}
@@ -819,12 +938,15 @@ export const CreateEventPage = () => {
                   }}
                   minTime={formData.startTime || undefined}
                   placeholder="Select end time"
-                  className={cn(errors.endTime && '[&_button]:border-destructive')}
+                  className={cn('h-12 [&_button]:h-12 [&_button]:border-2 [&_button]:transition-all [&_button]:duration-300', errors.endTime && '[&_button]:border-destructive')}
                   aria-invalid={!!errors.endTime}
                 />
                 {errors.endTime && <p className="text-sm text-destructive">{errors.endTime}</p>}
                 {formData.duration > 0 && (
-                  <p className="text-sm text-muted-foreground">Duration: {formData.duration} minutes</p>
+                  <div className="flex items-center gap-2 mt-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                    <Clock className="size-4 text-blue-600" />
+                    <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Duration: {Math.floor(formData.duration / 60)}h {formData.duration % 60}m</p>
+                  </div>
                 )}
               </div>
             </div>
@@ -832,17 +954,22 @@ export const CreateEventPage = () => {
         </Card>
 
         {/* Location and Capacity Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Location and Capacity</CardTitle>
+        <Card className="overflow-hidden border-0 shadow-xl shadow-black/5 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-900/50 transition-all duration-300 hover:shadow-2xl hover:shadow-black/10">
+          <CardHeader className="bg-blue-50 dark:bg-blue-950/30 border-b border-border/50">
+            <CardTitle className="flex items-center gap-3 text-lg">
+              <div className="flex items-center justify-center size-10 rounded-xl bg-blue-600 shadow-lg shadow-blue-500/30">
+                <MapPin className="size-5 text-white" />
+              </div>
+              Location & Capacity
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="location">
-                Location <span className="text-destructive">*</span>
-              </Label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+          <CardContent className="space-y-6 p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="location" className="text-sm font-semibold flex items-center gap-2">
+                  <MapPin className="size-4 text-blue-500" />
+                  Location <span className="text-destructive">*</span>
+                </Label>
                 <Input
                   id="location"
                   name="location"
@@ -850,40 +977,39 @@ export const CreateEventPage = () => {
                   onChange={handleChange}
                   placeholder="e.g. Phnom Penh, Kandal..."
                   className={cn(
-                    'h-10 pl-9',
+                    'h-12 text-base transition-all duration-300 border-2 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10',
                     errors.location && 'border-destructive aria-invalid:ring-destructive/20'
                   )}
                   aria-invalid={!!errors.location}
                 />
+                {errors.location && <p className="text-sm text-destructive">{errors.location}</p>}
               </div>
-              {errors.location && <p className="text-sm text-destructive">{errors.location}</p>}
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="fullAddress">
-                Full Address <span className="text-destructive">*</span>
-              </Label>
-              <div className="relative">
+              <div className="space-y-2">
+                <Label htmlFor="fullAddress" className="text-sm font-semibold flex items-center gap-2">
+                  <MapPin className="size-4 text-blue-500" />
+                  Full Address <span className="text-destructive">*</span>
+                </Label>
                 <Input
                   id="fullAddress"
                   name="fullAddress"
                   value={formData.fullAddress}
                   onChange={handleChange}
-                  placeholder="Street, building, or select from map"
+                  placeholder="Street, building, or venue name"
                   className={cn(
-                    'h-10 pr-9',
+                    'h-12 text-base transition-all duration-300 border-2 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10',
                     errors.fullAddress && 'border-destructive aria-invalid:ring-destructive/20'
                   )}
                   aria-invalid={!!errors.fullAddress}
                 />
-                <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+                {errors.fullAddress && <p className="text-sm text-destructive">{errors.fullAddress}</p>}
               </div>
-              {errors.fullAddress && <p className="text-sm text-destructive">{errors.fullAddress}</p>}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label>
+                <Label className="text-sm font-semibold flex items-center gap-2">
+                  <Tag className="size-4 text-blue-500" />
                   Category <span className="text-destructive">*</span>
                 </Label>
                 <Select
@@ -895,7 +1021,7 @@ export const CreateEventPage = () => {
                 >
                   <SelectTrigger
                     className={cn(
-                      'h-10 w-full',
+                      'h-12 w-full text-base border-2 transition-all duration-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10',
                       errors.category && 'border-destructive'
                     )}
                   >
@@ -903,7 +1029,7 @@ export const CreateEventPage = () => {
                   </SelectTrigger>
                   <SelectContent>
                     {categories.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
+                      <SelectItem key={cat} value={cat} className="text-base py-3">
                         {cat}
                       </SelectItem>
                     ))}
@@ -913,94 +1039,117 @@ export const CreateEventPage = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="capacity">
+                <Label htmlFor="capacity" className="text-sm font-semibold flex items-center gap-2">
+                  <Users className="size-4 text-blue-500" />
                   Capacity <span className="text-destructive">*</span>
                 </Label>
-                <div className="relative">
-                  <Users className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-                  <Input
-                    type="number"
-                    id="capacity"
-                    name="capacity"
-                    value={formData.capacity}
-                    onChange={handleChange}
-                    min={1}
-                    className={cn(
-                      'h-10 pl-9',
-                      errors.capacity && 'border-destructive aria-invalid:ring-destructive/20'
-                    )}
-                    aria-invalid={!!errors.capacity}
-                  />
-                </div>
+                <Input
+                  type="number"
+                  id="capacity"
+                  name="capacity"
+                  value={formData.capacity}
+                  onChange={handleChange}
+                  min={1}
+                  className={cn(
+                    'h-12 text-base transition-all duration-300 border-2 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10',
+                    errors.capacity && 'border-destructive aria-invalid:ring-destructive/20'
+                  )}
+                  aria-invalid={!!errors.capacity}
+                />
                 {errors.capacity && <p className="text-sm text-destructive">{errors.capacity}</p>}
               </div>
             </div>
 
-            <div className="pt-4 border-t border-border">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.isPublic ?? true}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, isPublic: e.target.checked }))}
-                  className="size-4 rounded border-input text-primary focus:ring-ring"
-                />
-                <span className="text-sm font-medium">Public event (visible to everyone)</span>
+            <div className="pt-5 border-t border-border/50">
+              <label className="flex items-center gap-3 cursor-pointer group p-4 rounded-xl bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-slate-800/50 dark:to-slate-900/50 border border-border/50 hover:border-blue-300 dark:hover:border-blue-700 transition-all duration-300">
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    checked={formData.isPublic ?? true}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, isPublic: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="size-6 rounded-lg border-2 border-slate-300 dark:border-slate-600 peer-checked:border-blue-500 peer-checked:bg-blue-600 transition-all duration-300 flex items-center justify-center">
+                    <CheckCircle2 className="size-4 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
+                  </div>
+                </div>
+                <div>
+                  <span className="text-sm font-semibold text-foreground">Public Event</span>
+                  <p className="text-xs text-muted-foreground">Make this event visible to everyone</p>
+                </div>
               </label>
             </div>
           </CardContent>
         </Card>
 
         {/* Create Agendas Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Create Agendas</CardTitle>
+        <Card className="overflow-hidden border-0 shadow-xl shadow-black/5 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-900/50 transition-all duration-300 hover:shadow-2xl hover:shadow-black/10">
+          <CardHeader className="bg-blue-50 dark:bg-blue-950/30 border-b border-border/50">
+            <CardTitle className="flex items-center gap-3 text-lg">
+              <div className="flex items-center justify-center size-10 rounded-xl bg-blue-600 shadow-lg shadow-blue-500/30">
+                <ListChecks className="size-5 text-white" />
+              </div>
+              Event Agenda
+              {agendas.length > 0 && (
+                <span className="ml-auto text-sm font-normal px-3 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                  {agendas.length} item{agendas.length > 1 ? 's' : ''}
+                </span>
+              )}
+            </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-6">
             {agendas.length > 0 && (
-              <div className="space-y-3 mb-4">
-                {agendas.map((agenda) => (
-                  <div key={agenda.id} className="rounded-lg border border-border p-4 space-y-3">
-                    <div className="flex justify-between items-start">
-                      <h3 className="font-medium">Agenda Item {agendas.indexOf(agenda) + 1}</h3>
+              <div className="space-y-4 mb-5">
+                {agendas.map((agenda, index) => (
+                  <div key={agenda.id} className="rounded-2xl border-2 border-blue-100 dark:border-blue-900/50 bg-blue-50/50 dark:bg-blue-950/20 p-5 space-y-4 transition-all duration-300 hover:border-blue-200 dark:hover:border-blue-800">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center size-8 rounded-lg bg-blue-600 text-white text-sm font-bold shadow-md">
+                          {index + 1}
+                        </div>
+                        <h3 className="font-semibold text-foreground">Agenda Item</h3>
+                      </div>
                       <Button
                         type="button"
                         variant="ghost"
-                        size="icon-xs"
+                        size="icon-sm"
                         onClick={() => handleRemoveAgenda(agenda.id)}
-                        className="text-destructive hover:text-destructive"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10 rounded-lg"
                       >
                         <X className="size-4" />
                       </Button>
                     </div>
                     <Input
-                      placeholder="Agenda title"
+                      placeholder="What's happening at this time?"
                       value={agenda.title}
                       onChange={(e) => handleUpdateAgenda(agenda.id, 'title', e.target.value)}
-                      className="h-10"
+                      className="h-12 text-base border-2 transition-all duration-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                     />
                     <textarea
-                      placeholder="Agenda description"
+                      placeholder="Add more details about this agenda item..."
                       value={agenda.description}
                       onChange={(e) => handleUpdateAgenda(agenda.id, 'description', e.target.value)}
                       rows={2}
-                      className="flex min-h-16 w-full rounded-md border border-input bg-transparent px-3 py-2.5 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] resize-none"
+                      className="flex min-h-20 w-full rounded-xl border-2 border-input bg-transparent px-4 py-3 text-base shadow-xs outline-none placeholder:text-muted-foreground focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all duration-300 resize-none"
                     />
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Start</Label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Start Time</Label>
                         <TimePicker
                           value={agenda.startTime}
                           onChange={(v) => handleUpdateAgenda(agenda.id, 'startTime', v)}
-                          placeholder="—"
+                          placeholder="Select"
+                          className="[&_button]:h-11 [&_button]:border-2"
                         />
                       </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">End</Label>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">End Time</Label>
                         <TimePicker
                           value={agenda.endTime}
                           onChange={(v) => handleUpdateAgenda(agenda.id, 'endTime', v)}
                           minTime={agenda.startTime || undefined}
-                          placeholder="—"
+                          placeholder="Select"
+                          className="[&_button]:h-11 [&_button]:border-2"
                         />
                       </div>
                     </div>
@@ -1008,26 +1157,55 @@ export const CreateEventPage = () => {
                 ))}
               </div>
             )}
-            <Button type="button" variant="outline" className="w-full border-dashed" onClick={handleAddAgenda}>
-              <Plus className="size-4" />
-              Add agenda item
+            <Button 
+              type="button" 
+              variant="outline" 
+              className="w-full h-14 border-2 border-dashed border-blue-200 dark:border-blue-800 hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-950/30 transition-all duration-300 group" 
+              onClick={handleAddAgenda}
+            >
+              <div className="flex items-center justify-center size-8 rounded-lg bg-blue-100 dark:bg-blue-900/50 mr-3 group-hover:scale-110 transition-transform duration-300">
+                <Plus className="size-4 text-blue-600" />
+              </div>
+              <span className="text-muted-foreground group-hover:text-foreground transition-colors">Add agenda item</span>
             </Button>
           </CardContent>
         </Card>
 
         {errors.submit && (
-          <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <div className="rounded-2xl border-2 border-destructive/30 bg-destructive/5 px-5 py-4 text-sm text-destructive flex items-center gap-3">
+            <div className="flex items-center justify-center size-8 rounded-lg bg-destructive/10">
+              <X className="size-4" />
+            </div>
             {errors.submit}
           </div>
         )}
 
-        <div className="flex justify-end gap-3 pb-6">
-          <Button type="button" variant="outline" onClick={() => navigate(-1)}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={createEventMutation.isPending} className="bg-blue-600 text-white hover:bg-blue-700">
-            {createEventMutation.isPending ? (submitStatus === 'uploading' ? 'Uploading image...' : 'Creating event...') : 'Create Event'}
-          </Button>
+        {/* Submit Footer */}
+        <div className="sticky bottom-0 bg-gradient-to-t from-background via-background to-transparent pt-6 pb-8 -mx-4 px-4 md:-mx-6 md:px-6">
+          <div className="flex justify-end gap-4">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => navigate(-1)}
+              className="px-6 h-12 text-base border-2 hover:bg-slate-50 dark:hover:bg-slate-900 transition-all duration-300"
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="submit" 
+              disabled={createEventMutation.isPending} 
+              className="px-8 h-12 text-base gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/25 transition-all duration-300 disabled:opacity-70"
+            >
+              {createEventMutation.isPending ? (
+                <>
+                  <div className="size-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  {submitStatus === 'uploading' ? 'Uploading image...' : 'Creating event...'}
+                </>
+              ) : (
+                'Create Event'
+              )}
+            </Button>
+          </div>
         </div>
       </form>
 
@@ -1050,22 +1228,36 @@ export const CreateEventPage = () => {
 const StaffSelectionModal = ({ staffList, selectedStaff, onToggle, onRoleChange, onClose, onConfirm }) => {
   const STAFF_ROLES = ['Coordinator', 'Event Manager', 'Support Staff'];
   return (
-    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h3 className="text-xl font-semibold text-gray-900">Select Staff Members</h3>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-md flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden border border-border/50">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 bg-blue-50 dark:bg-blue-950/30 border-b border-border/50">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center size-10 rounded-xl bg-blue-600 shadow-lg shadow-blue-500/30">
+              <UserPlus className="size-5 text-white" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-foreground">Select Staff Members</h3>
+              <p className="text-sm text-muted-foreground">Choose team members to help manage your event</p>
+            </div>
+          </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="flex items-center justify-center size-10 rounded-xl text-muted-foreground hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-300"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X className="size-5" />
           </button>
         </div>
+        
+        {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
           {staffList.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">No staff members available in this organization</p>
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="flex items-center justify-center size-16 rounded-2xl bg-slate-100 dark:bg-slate-800 mb-4">
+                <Users className="size-8 text-muted-foreground" />
+              </div>
+              <p className="text-muted-foreground text-center">No staff members available in this organization</p>
+            </div>
           ) : (
             <div className="space-y-3">
               {staffList.map((staff) => {
@@ -1074,29 +1266,43 @@ const StaffSelectionModal = ({ staffList, selectedStaff, onToggle, onRoleChange,
                 return (
                   <div
                     key={staff.user_id}
-                    className={`flex items-center gap-4 p-4 border rounded-lg transition-colors ${
+                    className={cn(
+                      'flex items-center gap-4 p-4 border-2 rounded-xl transition-all duration-300',
                       isSelected
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                    }`}
+                        ? 'border-blue-400 bg-blue-50 dark:bg-blue-950/30 shadow-md'
+                        : 'border-border hover:border-blue-200 dark:hover:border-blue-800 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                    )}
                   >
                     <label className="flex items-center gap-4 cursor-pointer flex-1">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => onToggle(staff)}
-                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => onToggle(staff)}
+                          className="sr-only peer"
+                        />
+                        <div className={cn(
+                          "size-6 rounded-lg border-2 transition-all duration-300 flex items-center justify-center",
+                          isSelected 
+                            ? "border-blue-500 bg-blue-600" 
+                            : "border-slate-300 dark:border-slate-600"
+                        )}>
+                          {isSelected && <CheckCircle2 className="size-4 text-white" />}
+                        </div>
+                      </div>
+                      <div className="size-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold shadow-md">
+                        {staff.name.charAt(0).toUpperCase()}
+                      </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900">{staff.name}</p>
-                        <p className="text-sm text-gray-500">{staff.email}</p>
+                        <p className="font-semibold text-foreground">{staff.name}</p>
+                        <p className="text-sm text-muted-foreground truncate">{staff.email}</p>
                       </div>
                     </label>
                     {isSelected && onRoleChange && (
                       <select
                         value={selectedEntry?.role || 'Coordinator'}
                         onChange={(e) => onRoleChange(staff.user_id, e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                        className="px-4 py-2.5 border-2 border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-900 rounded-xl text-sm font-medium focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300"
                         onClick={(e) => e.stopPropagation()}
                       >
                         {STAFF_ROLES.map((role) => (
@@ -1110,19 +1316,30 @@ const StaffSelectionModal = ({ staffList, selectedStaff, onToggle, onRoleChange,
             </div>
           )}
         </div>
-        <div className="flex justify-end gap-3 p-6 border-t border-gray-200">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Confirm ({selectedStaff.length} selected)
-          </button>
+        
+        {/* Footer */}
+        <div className="flex justify-between items-center gap-3 p-6 border-t border-border/50 bg-slate-50/50 dark:bg-slate-800/50">
+          <p className="text-sm text-muted-foreground">
+            {selectedStaff.length > 0 ? (
+              <span className="font-medium text-blue-600 dark:text-blue-400">{selectedStaff.length} member{selectedStaff.length > 1 ? 's' : ''} selected</span>
+            ) : (
+              'No members selected'
+            )}
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="px-5 py-2.5 border-2 border-border rounded-xl text-foreground font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-300"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onConfirm}
+              className="px-6 py-2.5 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/25 transition-all duration-300"
+            >
+              Confirm Selection
+            </button>
+          </div>
         </div>
       </div>
     </div>

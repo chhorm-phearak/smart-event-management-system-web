@@ -16,7 +16,7 @@ export const HeaderSection = () => {
             to="/landing-page"
             className="text-3xl lg:text-4xl font-bold text-blue-600 hover:text-blue-700 transition-colors"
           >
-            EventFlow
+            MPR Smart Event
           </Link>
           <div className="flex items-center gap-10 lg:gap-12">
             {navLinks.map((link) => (

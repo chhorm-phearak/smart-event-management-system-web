@@ -1,7 +1,25 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getAccessToken, removeAccessToken, getOrganizationId, setOrganizationId, removeOrganizationId } from '@/utils';
-import { authService } from '@/services';
+import { authService, organizationService } from '@/services';
+
+// Resolve the current organization id for the logged-in user from the
+// dedicated organization endpoint. This is the authoritative source because
+// /auth/login and /auth/profile responses may not include organization info.
+const resolveCurrentOrganizationId = async () => {
+  try {
+    const res = await organizationService.getCurrentOrganization();
+    const payload = res?.data ?? res;
+    return (
+      payload?.organization?.id ??
+      payload?.organization_id ??
+      payload?.id ??
+      null
+    );
+  } catch {
+    return null;
+  }
+};
 
 const AuthContext = createContext(null);
 
@@ -22,15 +40,17 @@ export const AuthProvider = ({ children }) => {
           const userData = profileData?.data?.user || profileData?.user || profileData;
           console.log('Extracted User Data:', userData); // Debug log
           if (userData) {
-            // Store organization_id in localStorage if available
-            const orgId = userData.organization_id ?? userData.organizationId ?? userData.organization?.id;
+            // /auth/profile may not include organization info. Resolve the org id
+            // from (1) profile, (2) localStorage, (3) /organizations/current.
+            const orgIdFromProfile =
+              userData.organization_id ?? userData.organizationId ?? userData.organization?.id;
+            let orgId = orgIdFromProfile ?? getOrganizationId();
+            if (!orgId) {
+              orgId = await resolveCurrentOrganizationId();
+            }
             if (orgId) {
               setOrganizationId(orgId);
-            }
-            // Ensure user object has organization_id from localStorage as fallback
-            const storedOrgId = getOrganizationId();
-            if (storedOrgId && !userData.organization_id) {
-              userData.organization_id = storedOrgId;
+              userData.organization_id = userData.organization_id ?? orgId;
             }
             setUser(userData);
           }
@@ -51,8 +71,12 @@ export const AuthProvider = ({ children }) => {
       const userData = data?.data?.user || data?.user || { email };
       console.log('Login User Data:', userData); // Debug log
       
-      // Store organization_id in localStorage if available
-      const orgId = userData.organization_id ?? userData.organizationId ?? userData.organization?.id;
+      // Store organization_id in localStorage if available; otherwise resolve
+      // it from /organizations/current so refresh keeps the organizer state.
+      let orgId = userData.organization_id ?? userData.organizationId ?? userData.organization?.id;
+      if (!orgId) {
+        orgId = await resolveCurrentOrganizationId();
+      }
       if (orgId) {
         setOrganizationId(orgId);
         userData.organization_id = orgId;

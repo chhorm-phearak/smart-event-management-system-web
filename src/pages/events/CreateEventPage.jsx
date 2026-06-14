@@ -47,6 +47,7 @@ export const CreateEventPage = () => {
   const [selectedStaff, setSelectedStaff] = useState([]);
   const [agendas, setAgendas] = useState([]);
   const [imagePreview, setImagePreview] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [createdEventId, setCreatedEventId] = useState(null);
   const [registeredQrCode, setRegisteredQrCode] = useState('');
 
@@ -288,23 +289,83 @@ export const CreateEventPage = () => {
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setErrors((prev) => ({ ...prev, image: 'Image size must be less than 5MB' }));
-        return;
-      }
-      if (!file.type.startsWith('image/')) {
-        setErrors((prev) => ({ ...prev, image: 'Please select a valid image file' }));
-        return;
-      }
-      setFormData((prev) => ({ ...prev, image: file }));
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-      setErrors((prev) => ({ ...prev, image: '' }));
+      processImageFile(file);
     }
   };
+
+  const processImageFile = (file) => {
+    if (file.size > 5 * 1024 * 1024) {
+      setErrors((prev) => ({ ...prev, image: 'Image size must be less than 5MB' }));
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      setErrors((prev) => ({ ...prev, image: 'Please select a valid image file' }));
+      return;
+    }
+    setFormData((prev) => ({ ...prev, image: file }));
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result);
+    };
+    reader.readAsDataURL(file);
+    setErrors((prev) => ({ ...prev, image: '' }));
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (file.type.startsWith('image/')) {
+        processImageFile(file);
+      } else {
+        setErrors((prev) => ({ ...prev, image: 'Please drop an image file' }));
+      }
+    }
+  };
+
+  const handlePaste = (e) => {
+    const items = e.clipboardData?.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.indexOf('image') !== -1) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (file) {
+            processImageFile(file);
+          }
+          break;
+        }
+      }
+    }
+  };
+
+
+  useEffect(() => {
+    // Add paste event listener
+    const handlePasteGlobal = (e) => handlePaste(e);
+    document.addEventListener('paste', handlePasteGlobal);
+    
+    return () => {
+      document.removeEventListener('paste', handlePasteGlobal);
+    };
+  }, []);
 
   const handleStaffToggle = (staff) => {
     setSelectedStaff((prev) => {
@@ -368,8 +429,16 @@ export const CreateEventPage = () => {
     if (formData.startTime && formData.endTime && formData.eventDate) {
       const startDateTime = new Date(`${formData.eventDate}T${formData.startTime}`);
       const endDateTime = new Date(`${formData.eventDate}T${formData.endTime}`);
+      
+      // Check if end time is after start time
       if (endDateTime <= startDateTime) {
         newErrors.endTime = 'End time must be after start time';
+      }
+      
+      // Check if end time goes past midnight (next day)
+      const nextDayMidnight = new Date(`${formData.eventDate}T23:59`);
+      if (endDateTime > nextDayMidnight) {
+        newErrors.endTime = 'Events must end by 11:59 PM on the same day';
       }
     }
 
@@ -702,20 +771,39 @@ export const CreateEventPage = () => {
                   >
                     <X className="size-4" />
                   </Button>
-                  <div className="absolute bottom-3 left-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                    <p className="text-white text-sm font-medium">Image uploaded successfully</p>
-                  </div>
-                </div>
+                                  </div>
               ) : (
-                <label className="flex flex-col items-center justify-center w-full h-72 border-2 border-dashed border-blue-200 dark:border-blue-900/50 rounded-2xl cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-all duration-300 group">
+                <label 
+                  className={`flex flex-col items-center justify-center w-full h-72 border-2 rounded-2xl cursor-pointer transition-all duration-300 group ${
+                    isDragging 
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 scale-[1.02]' 
+                      : 'border-dashed border-blue-200 dark:border-blue-900/50 hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-950/20'
+                  }`}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
                   <div className="flex flex-col items-center justify-center py-8">
-                    <div className="flex items-center justify-center size-16 rounded-2xl bg-blue-100 dark:bg-blue-900/30 mb-4 group-hover:scale-110 transition-transform duration-300">
-                      <Upload className="size-8 text-blue-500" />
+                    <div className={`flex items-center justify-center size-16 rounded-2xl mb-4 transition-all duration-300 ${
+                      isDragging 
+                        ? 'bg-blue-200 dark:bg-blue-800 scale-110' 
+                        : 'bg-blue-100 dark:bg-blue-900/30 group-hover:scale-110'
+                    }`}>
+                      <Upload className={`size-8 transition-colors duration-300 ${
+                        isDragging ? 'text-blue-600' : 'text-blue-500'
+                      }`} />
                     </div>
                     <p className="mb-2 text-base font-medium text-foreground">
-                      Drop your image here or <span className="text-blue-500">browse</span>
+                      {isDragging ? (
+                        <span className="text-blue-600">Drop your image here</span>
+                      ) : (
+                        <>
+                          Drop your image here, <span className="text-blue-500">browse</span>, or <span className="text-blue-500">paste</span>
+                        </>
+                      )}
                     </p>
                     <p className="text-sm text-muted-foreground">PNG, JPG, GIF up to 5MB</p>
+                    <p className="text-xs text-blue-500 mt-2">Tip: You can also copy & paste images from clipboard</p>
                   </div>
                   <input
                     type="file"
@@ -1060,26 +1148,7 @@ export const CreateEventPage = () => {
               </div>
             </div>
 
-            <div className="pt-5 border-t border-border/50">
-              <label className="flex items-center gap-3 cursor-pointer group p-4 rounded-xl bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-slate-800/50 dark:to-slate-900/50 border border-border/50 hover:border-blue-300 dark:hover:border-blue-700 transition-all duration-300">
-                <div className="relative">
-                  <input
-                    type="checkbox"
-                    checked={formData.isPublic ?? true}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, isPublic: e.target.checked }))}
-                    className="sr-only peer"
-                  />
-                  <div className="size-6 rounded-lg border-2 border-slate-300 dark:border-slate-600 peer-checked:border-blue-500 peer-checked:bg-blue-600 transition-all duration-300 flex items-center justify-center">
-                    <CheckCircle2 className="size-4 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
-                  </div>
-                </div>
-                <div>
-                  <span className="text-sm font-semibold text-foreground">Public Event</span>
-                  <p className="text-xs text-muted-foreground">Make this event visible to everyone</p>
-                </div>
-              </label>
-            </div>
-          </CardContent>
+                      </CardContent>
         </Card>
 
         {/* Create Agendas Section */}

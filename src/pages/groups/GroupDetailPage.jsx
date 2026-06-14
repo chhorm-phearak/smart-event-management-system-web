@@ -1,6 +1,46 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { groupService, eventService } from '@/services';
+import { useAuth } from '@/context/AuthContext';
+
+
+const resolveImageUrl = (url) => {
+  if (!url || typeof url !== 'string') return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('/uploads/')) return `${window.location.origin}${url}`;
+  return url;
+};
+
+const getMemberInitial = (name) => {
+  const trimmed = (name || '').trim();
+  if (!trimmed) return '?';
+  return trimmed.charAt(0).toUpperCase();
+};
+
+const MemberAvatar = ({ name, profileImage, className = 'w-12 h-12' }) => {
+  const [imgError, setImgError] = useState(false);
+  const showImage = profileImage && !imgError;
+
+  if (showImage) {
+    return (
+      <img
+        src={profileImage}
+        alt={name}
+        className={`${className} rounded-full object-cover`}
+        onError={() => setImgError(true)}
+      />
+    );
+  }
+
+  return (
+    <div
+      className={`${className} rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-lg shrink-0`}
+      aria-hidden
+    >
+      {getMemberInitial(name)}
+    </div>
+  );
+};
 
 export const GroupDetailPage = () => {
   const navigate = useNavigate();
@@ -10,6 +50,8 @@ export const GroupDetailPage = () => {
   const [events, setEvents] = useState([]);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+
 
   useEffect(() => {
     const loadAllData = async () => {
@@ -24,6 +66,10 @@ export const GroupDetailPage = () => {
     loadAllData();
   }, [id]);
 
+  const organizationId = user?.organization_id ?? user?.organizationId ?? user?.organization?.id ?? null;
+  // Same rule as DashboardLayout: only users linked to an organization can manage/create groups
+  const isOrganizer = !!organizationId;
+
   const fetchGroupDetails = async () => {
     try {
       // Use real API call to get group details
@@ -34,17 +80,8 @@ export const GroupDetailPage = () => {
       const groupData = response?.data?.group || response?.data?.group || response?.group || {};
       
       // Normalize data for UI consumption
-      // Handle image URL - if it's a relative path, add base URL
-      let imageUrl = 'https://images.unsplash.com/photo-1526379095085-dccba630e2f6?w=1200&h=400&fit=crop';
-      if (groupData.image_url) {
-        imageUrl = groupData.image_url;
-        // If it's a relative path, add base URL
-        if (imageUrl.startsWith('/uploads/')) {
-          imageUrl = `${window.location.origin}${imageUrl}`;
-        }
-      } else if (groupData.image) {
-        imageUrl = groupData.image;
-      }
+      // Handle image URL - API returns full URL, so use it directly
+      let imageUrl = groupData.image_url || groupData.image || 'https://images.unsplash.com/photo-1526379095085-dccba630e2f6?w=1200&h=400&fit=crop';
       
       const normalizedGroup = {
         id: groupData.id || id,
@@ -76,22 +113,35 @@ export const GroupDetailPage = () => {
       console.log('Raw Events Data:', eventsData); // Debug log
       
       // Normalize events data for UI consumption
-      const normalizedEvents = eventsData.map(event => ({
-        id: event.id,
-        title: event.title || 'Untitled Event',
-        date: new Date(event.start_time).toLocaleDateString(),
-        time: new Date(event.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        location: event.location || 'Location TBD',
-        maxAttendees: event.capacity || 0,
-        registered: 0, // You might want to track this from API
-        category: event.category || 'General',
-        image: event.images?.[0]?.image_url || 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=400&h=200&fit=crop',
-        shortDescription: event.short_description || '',
-        longDescription: event.long_description || '',
-        startTime: event.start_time,
-        endTime: event.end_time,
-        fullAddress: event.full_address || '',
-      }));
+      const normalizedEvents = eventsData.map(event => {
+        // Handle image parsing with robust logic (similar to EventDetailPage)
+        console.log('Processing event:', event.title, 'Images:', event.images);
+        const images = event.images ?? event.event_images ?? [];
+        const firstImage = Array.isArray(images) ? images[0] : images;
+        console.log('First image:', firstImage);
+        const imageUrl =
+          (firstImage && typeof firstImage === 'object' && (firstImage.image_url ?? firstImage.url)) ||
+          (typeof firstImage === 'string' ? firstImage : null) ||
+          'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=400&h=200&fit=crop';
+        console.log('Final image URL:', imageUrl);
+        
+        return {
+          id: event.id,
+          title: event.title || 'Untitled Event',
+          date: new Date(event.start_time).toLocaleDateString(),
+          time: new Date(event.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          location: event.location || 'Location TBD',
+          maxAttendees: event.capacity || 0,
+          registered: event.number_of_registered || event.registered || event.attendees_count || 0, // Handle various possible field names
+          category: event.category || 'General',
+          image: imageUrl,
+          shortDescription: event.short_description || '',
+          longDescription: event.long_description || '',
+          startTime: event.start_time,
+          endTime: event.end_time,
+          fullAddress: event.full_address || '',
+        };
+      });
       
       console.log('Normalized Events:', normalizedEvents); // Debug log
       setEvents(normalizedEvents);
@@ -111,14 +161,29 @@ export const GroupDetailPage = () => {
       console.log('Raw Members Data:', membersData); // Debug log
       
       // Normalize members data for UI consumption
-      const normalizedMembers = membersData.map(member => ({
-        id: member.id,
-        name: `${member.first_name || ''} ${member.last_name || ''}`.trim() || 'Unknown User',
-        email: member.email || 'No email',
-        role: member.role || 'Member',
-        avatar: member.avatar || 'https://images.unsplash.com/photo-1472099645785-2616b612b786?w=100&h=100&fit=crop',
-        joinedDate: member.joined_at || new Date().toISOString(),
-      }));
+      const normalizedMembers = membersData.map((member) => {
+        const name =
+          `${member.first_name || ''} ${member.last_name || ''}`.trim() ||
+          member.name ||
+          member.username ||
+          'Unknown User';
+        const profileImageRaw =
+          member.profile_image ??
+          member.profileImage ??
+          member.avatar ??
+          member.image_url ??
+          member.img_url ??
+          null;
+
+        return {
+          id: member.id,
+          name,
+          email: member.email || 'No email',
+          role: member.role || 'Member',
+          profileImage: resolveImageUrl(profileImageRaw),
+          joinedDate: member.joined_at || new Date().toISOString(),
+        };
+      });
       
       console.log('Normalized Members:', normalizedMembers); // Debug log
       setMembers(normalizedMembers);
@@ -217,6 +282,7 @@ export const GroupDetailPage = () => {
             </div>
 
             {/* Create Event Button */}
+            {isOrganizer && ( 
             <button
               onClick={handleCreateEvent}
               className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium whitespace-nowrap"
@@ -226,6 +292,7 @@ export const GroupDetailPage = () => {
               </svg>
               <span>Create Event</span>
             </button>
+            )}
           </div>
         </div>
       </div>
@@ -267,16 +334,9 @@ export const GroupDetailPage = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                   <p className="text-gray-500 text-lg mb-2">No events yet</p>
+                  {isOrganizer && (
                   <p className="text-gray-400 text-sm mb-4">Be the first to create an event for this group!</p>
-                  <button
-                    onClick={handleCreateEvent}
-                    className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    <span>Create Event</span>
-                  </button>
+                  )}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -366,11 +426,7 @@ export const GroupDetailPage = () => {
                     >
                       {/* Avatar */}
                       <div className="shrink-0">
-                        <img
-                          src={member.avatar}
-                          alt={member.name}
-                          className="w-12 h-12 rounded-full object-cover"
-                        />
+                        <MemberAvatar name={member.name} profileImage={member.profileImage} />
                       </div>
 
                       {/* Member Info */}

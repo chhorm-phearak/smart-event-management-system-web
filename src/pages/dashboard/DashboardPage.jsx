@@ -140,7 +140,7 @@ export const DashboardPage = () => {
       <div className="px-4 sm:px-6 py-8">
         
         {/* Welcome Banner */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 mb-8 relative overflow-hidden">
+        <div className="bg-blue-600 rounded-2xl p-8 mb-8 relative overflow-hidden">
           <div className="absolute inset-0 bg-grid-white/10" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'30\' height=\'30\' viewBox=\'0 0 30 30\' fill=\'none\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M1.5 0V30M0 1.5H30\' stroke=\'white\' stroke-opacity=\'0.1\'/%3E%3C/svg%3E")' }} />
           <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-6">
             <div className="text-white">
@@ -206,7 +206,7 @@ export const DashboardPage = () => {
             <div className="mt-4 pt-4 border-t border-gray-100">
               <div className="w-full bg-gray-100 rounded-full h-2">
                 <div 
-                  className="bg-emerald-500 h-2 rounded-full transition-all" 
+                  className="bg-blue-500 h-2 rounded-full transition-all" 
                   style={{ width: `${stats.totalEvents > 0 ? (stats.upcomingEvents / stats.totalEvents) * 100 : 0}%` }}
                 />
               </div>
@@ -226,7 +226,7 @@ export const DashboardPage = () => {
             <div className="mt-4 pt-4 border-t border-gray-100">
               <div className="w-full bg-gray-100 rounded-full h-2">
                 <div 
-                  className="bg-orange-500 h-2 rounded-full transition-all" 
+                  className="bg-blue-500 h-2 rounded-full transition-all" 
                   style={{ width: `${stats.totalEvents > 0 ? (stats.pastEvents / stats.totalEvents) * 100 : 0}%` }}
                 />
               </div>

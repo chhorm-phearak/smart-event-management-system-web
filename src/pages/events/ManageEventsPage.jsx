@@ -411,8 +411,8 @@ export const ManageEventsPage = () => {
                         <div
                           className={`h-full rounded-full transition-all duration-500 ${
                             calculateProgress(event.registered, event.totalCapacity) >= 80
-                              ? 'bg-gradient-to-r from-emerald-400 to-emerald-600'
-                              : 'bg-gradient-to-r from-blue-400 to-blue-600'
+                              ? 'bg-emerald-500'
+                              : 'bg-blue-500'
                           }`}
                           style={{ width: `${calculateProgress(event.registered, event.totalCapacity)}%` }}
                         />

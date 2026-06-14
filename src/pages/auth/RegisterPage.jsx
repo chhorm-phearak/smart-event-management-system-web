@@ -11,6 +11,7 @@ export const RegisterPage = () => {
     password: '',
     phone: '',
   });
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -30,6 +31,13 @@ export const RegisterPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    // Validate terms acceptance
+    if (!termsAccepted) {
+      setError('You must agree to the Terms of Service and Privacy Policy to register.');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -62,12 +70,10 @@ export const RegisterPage = () => {
         <div className="relative z-10 text-center px-12">
           <div className="mb-8">
             <div className="w-20 h-20 bg-white rounded-2xl shadow-2xl flex items-center justify-center mx-auto mb-6 transform hover:scale-110 transition-transform duration-300">
-              <svg className="w-12 h-12 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-              </svg>
+              <img src={Logo} alt="MPR Smart Event" className="w-16 h-16 rounded-xl object-contain" />
             </div>
-            <h1 className="text-5xl font-bold text-white mb-4">Join EventPlatform</h1>
-            <p className="text-xl text-blue-100 mb-8">Start creating amazing events today</p>
+            <h1 className="text-5xl font-bold text-white mb-4">Join MPR Smart Event</h1>
+            <p className="text-xl text-blue-100 mb-8">Start creating and attending amazing events</p>
           </div>
           
           <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20">
@@ -79,8 +85,8 @@ export const RegisterPage = () => {
                   </svg>
                 </div>
                 <div>
-                  <p className="font-semibold">Free to Get Started</p>
-                  <p className="text-sm text-blue-100">No credit card required</p>
+                  <p className="font-semibold">Free to Join Events</p>
+                  <p className="text-sm text-blue-100">Attend unlimited events worldwide</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 text-white">
@@ -90,8 +96,8 @@ export const RegisterPage = () => {
                   </svg>
                 </div>
                 <div>
-                  <p className="font-semibold">Quick Setup</p>
-                  <p className="text-sm text-blue-100">Get started in minutes</p>
+                  <p className="font-semibold">QR Ticket System</p>
+                  <p className="text-sm text-blue-100">Instant tickets for easy check-in</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 text-white">
@@ -101,8 +107,8 @@ export const RegisterPage = () => {
                   </svg>
                 </div>
                 <div>
-                  <p className="font-semibold">Secure & Reliable</p>
-                  <p className="text-sm text-blue-100">Your data is safe with us</p>
+                  <p className="font-semibold">Event Management Tools</p>
+                  <p className="text-sm text-blue-100">Create events, manage groups & staff</p>
                 </div>
               </div>
             </div>
@@ -224,7 +230,7 @@ export const RegisterPage = () => {
                     type="tel"
                     value={formData.phone}
                     onChange={handleChange}
-                    placeholder="+1 (555) 123-4567"
+                    placeholder="Enter your phone number"
                     required
                     className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   />
@@ -278,6 +284,8 @@ export const RegisterPage = () => {
                   type="checkbox"
                   id="terms"
                   required
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
                   className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                 />
                 <label htmlFor="terms" className="text-sm text-gray-600">
@@ -346,7 +354,7 @@ export const RegisterPage = () => {
             <p className="mt-8 text-center text-sm text-gray-600">
               Already have an account?{' '}
               <Link to="/login" className="text-blue-600 hover:text-blue-700 font-semibold">
-                Sign in here
+                Sign in to MPR Smart Event
               </Link>
             </p>
           </div>

@@ -32,15 +32,13 @@ export const EditEventPage = () => {
   const [agendas, setAgendas] = useState([]);
   const [imagePreview, setImagePreview] = useState(null);
 
-  const { data: eventData, isLoading: eventLoading } = useQuery({
+  const { data: eventResponse, isLoading: eventLoading } = useQuery({
     queryKey: ['event', eventId],
     queryFn: async () => {
       console.log('Fetching event with ID:', eventId);
       const response = await eventService.getEventById(eventId);
       console.log('Event API Response:', response);
-      const event = response?.data?.event || response?.data || response?.event || response;
-      console.log('Extracted Event Data:', event);
-      return event;
+      return response?.data || response;
     },
     enabled: !!eventId,
   });
@@ -60,6 +58,15 @@ export const EditEventPage = () => {
     enabled: !!organizationId,
   });
   const staffList = staffListData ?? [];
+
+  const { data: eventStaffData, isLoading: eventStaffLoading } = useQuery({
+    queryKey: ['event', eventId, 'staff'],
+    queryFn: async () => {
+      const response = await eventService.getEventStaff(eventId);
+      return response.data || [];
+    },
+    enabled: !!eventId,
+  });
 
   const [formData, setFormData] = useState({
     title: '',
@@ -98,7 +105,8 @@ export const EditEventPage = () => {
   ];
 
   useEffect(() => {
-    if (eventData) {
+    if (eventResponse?.event) {
+      const eventData = eventResponse.event;
       console.log('Populating form with event data:', eventData);
       
       const startDate = new Date(eventData.start_time);
@@ -117,7 +125,7 @@ export const EditEventPage = () => {
         endTime: endTimeStr,
         location: eventData.location || '',
         fullAddress: eventData.full_address || '',
-        category: eventData.category || '',
+        category: eventData.category || eventData.technology || eventData.type || '',
         capacity: eventData.capacity || 400,
         duration: eventData.duration || 0,
         image: null,
@@ -127,13 +135,13 @@ export const EditEventPage = () => {
       console.log('Setting form data:', populatedFormData);
       setFormData(populatedFormData);
 
-      if (eventData.primary_image_url) {
-        console.log('Setting image preview:', eventData.primary_image_url);
-        setImagePreview(eventData.primary_image_url);
+      if (eventResponse.images && eventResponse.images.length > 0) {
+        console.log('Setting image preview:', eventResponse.images[0].image_url);
+        setImagePreview(eventResponse.images[0].image_url);
       }
 
-      if (eventData.agenda && Array.isArray(eventData.agenda)) {
-        const mappedAgendas = eventData.agenda.map(item => {
+      if (eventResponse.agenda && Array.isArray(eventResponse.agenda)) {
+        const mappedAgendas = eventResponse.agenda.map(item => {
           const agendaStart = new Date(item.start_time);
           const agendaEnd = new Date(item.end_time);
           return {
@@ -144,12 +152,11 @@ export const EditEventPage = () => {
             endTime: agendaEnd.toTimeString().slice(0, 5),
           };
         });
-        console.log('Setting agendas:', mappedAgendas);
         setAgendas(mappedAgendas);
       }
 
-      if (eventData.staff && Array.isArray(eventData.staff)) {
-        const mappedStaff = eventData.staff.map(s => ({
+      if (eventStaffData && Array.isArray(eventStaffData)) {
+        const mappedStaff = eventStaffData.map(s => ({
           user_id: s.user_id,
           name: [s.first_name, s.last_name].filter(Boolean).join(' ') || 'Unknown',
           email: s.email || '',
@@ -161,7 +168,7 @@ export const EditEventPage = () => {
       
       console.log('Form population complete');
     }
-  }, [eventData]);
+  }, [eventResponse, eventStaffData]);
 
   const getCalendarDays = (year, month) => {
     const first = new Date(year, month, 1);
@@ -366,6 +373,14 @@ export const EditEventPage = () => {
         agenda.id === id ? { ...agenda, [field]: value } : agenda
       )
     );
+    // Clear agenda error when times are updated
+    if (field === 'startTime' || field === 'endTime') {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[`agenda_${id}`];
+        return newErrors;
+      });
+    }
   };
 
   const handleRemoveAgenda = (id) => {
@@ -391,10 +406,30 @@ export const EditEventPage = () => {
     if (formData.startTime && formData.endTime && formData.eventDate) {
       const startDateTime = new Date(`${formData.eventDate}T${formData.startTime}`);
       const endDateTime = new Date(`${formData.eventDate}T${formData.endTime}`);
+      
+      // Check if end time is after start time
       if (endDateTime <= startDateTime) {
         newErrors.endTime = 'End time must be after start time';
       }
+      
+      // Check if end time goes past midnight (next day)
+      const nextDayMidnight = new Date(`${formData.eventDate}T23:59`);
+      if (endDateTime > nextDayMidnight) {
+        newErrors.endTime = 'Events must end by 11:59 PM on the same day';
+      }
     }
+
+    // Validate agenda times
+    agendas.forEach((agenda, index) => {
+      if (agenda.startTime && agenda.endTime) {
+        const agendaStart = new Date(`${formData.eventDate}T${agenda.startTime}`);
+        const agendaEnd = new Date(`${formData.eventDate}T${agenda.endTime}`);
+        
+        if (agendaEnd <= agendaStart) {
+          newErrors[`agenda_${agenda.id}`] = `Agenda item ${index + 1}: End time must be after start time`;
+        }
+      }
+    });
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -406,23 +441,35 @@ export const EditEventPage = () => {
     setSubmitStatus('updating');
     setErrors((prev) => ({ ...prev, submit: '' }));
 
-    const startDateTime = new Date(`${formData.eventDate}T${formData.startTime}`);
-    const endDateTime = new Date(`${formData.eventDate}T${formData.endTime}`);
+    // Create ISO strings that preserve local time (no timezone conversion)
+    const startDateTimeLocal = new Date(`${formData.eventDate}T${formData.startTime}`);
+    const endDateTimeLocal = new Date(`${formData.eventDate}T${formData.endTime}`);
+    
+    // Helper function to create ISO string in local timezone
+    const toLocalISOString = (date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const seconds = String(date.getSeconds()).padStart(2, '0');
+      return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.000Z`;
+    };
 
     const payload = {
       organization_id: organizationId,
-      group_id: eventData?.group_id || '',
+      group_id: eventResponse?.event?.group_id || '',
       title: formData.title,
       short_description: formData.shortDescription,
       long_description: formData.description,
       category: formData.category,
       location: formData.location,
       full_address: formData.fullAddress,
-      start_time: startDateTime.toISOString(),
-      end_time: endDateTime.toISOString(),
-      duration: formData.duration || Math.floor((endDateTime - startDateTime) / (1000 * 60)),
+      start_time: toLocalISOString(startDateTimeLocal),
+      end_time: toLocalISOString(endDateTimeLocal),
+      duration: formData.duration || Math.floor((endDateTimeLocal - startDateTimeLocal) / (1000 * 60)),
       capacity: Number(formData.capacity),
-      status: eventData?.status || 'UPCOMING',
+      status: eventResponse?.event?.status || 'UPCOMING',
       is_public: formData.isPublic ?? true,
       agenda: agendas
         .filter((a) => a.title?.trim() && (a.startTime || formData.startTime) && (a.endTime || formData.endTime))
@@ -432,8 +479,8 @@ export const EditEventPage = () => {
           return {
             title: a.title,
             description: a.description || '',
-            start_time: agendaStart.toISOString(),
-            end_time: agendaEnd.toISOString(),
+            start_time: toLocalISOString(agendaStart),
+            end_time: toLocalISOString(agendaEnd),
           };
         }),
       staff: selectedStaff.map((s) => ({
@@ -476,11 +523,11 @@ export const EditEventPage = () => {
         </Button>
         
         <div className="flex items-center gap-4 mb-6">
-          <div className="flex items-center justify-center size-14 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/30">
+          <div className="flex items-center justify-center size-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30">
             <Pencil className="size-7 text-white" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
               Edit Event
             </h1>
             <p className="text-muted-foreground mt-1">Update the details of your event.</p>
@@ -510,7 +557,7 @@ export const EditEventPage = () => {
 
       <form onSubmit={handleSubmit} className="space-y-8">
         {errors.organization && (
-          <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-lg">
+          <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg">
             {errors.organization}
           </div>
         )}
@@ -550,7 +597,7 @@ export const EditEventPage = () => {
                 {errors.title && <p className="text-sm text-destructive">{errors.title}</p>}
                 <p className={cn(
                   "text-sm ml-auto transition-colors",
-                  formData.title.length > 130 ? "text-amber-500 font-medium" : "text-muted-foreground"
+                  formData.title.length > 130 ? "text-blue-500 font-medium" : "text-muted-foreground"
                 )}>{formData.title.length}/150</p>
               </div>
             </div>
@@ -840,7 +887,7 @@ export const EditEventPage = () => {
                     if (errors.startTime) setErrors((e) => ({ ...e, startTime: '' }));
                   }}
                   placeholder="Select start time"
-                  className={cn(errors.startTime && '[&_button]:border-destructive')}
+                  className={cn('h-12 [&_button]:h-12 [&_button]:border-2 [&_button]:transition-all [&_button]:duration-300', errors.startTime && '[&_button]:border-destructive')}
                   aria-invalid={!!errors.startTime}
                 />
                 {errors.startTime && <p className="text-sm text-destructive">{errors.startTime}</p>}
@@ -857,18 +904,16 @@ export const EditEventPage = () => {
                     setFormData((prev) => ({ ...prev, endTime: v }));
                     if (errors.endTime) setErrors((e) => ({ ...e, endTime: '' }));
                   }}
-                  minTime={formData.startTime || undefined}
-                  placeholder="Select end time"
-                  className={cn(errors.endTime && '[&_button]:border-destructive')}
+                                    placeholder="Select end time"
+                  className={cn('h-12 [&_button]:h-12 [&_button]:border-2 [&_button]:transition-all [&_button]:duration-300', errors.endTime && '[&_button]:border-destructive')}
                   aria-invalid={!!errors.endTime}
                 />
                 {errors.endTime && <p className="text-sm text-destructive">{errors.endTime}</p>}
                 {formData.duration > 0 && (
-                  <p className="text-sm text-muted-foreground mt-2 flex items-center gap-2">
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium">
-                      Duration: {formData.duration} minutes
-                    </span>
-                  </p>
+                  <div className="flex items-center gap-2 mt-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                    <Clock className="size-4 text-blue-600" />
+                    <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Duration: {Math.floor(formData.duration / 60)}h {formData.duration % 60}m</p>
+                  </div>
                 )}
               </div>
             </div>
@@ -980,18 +1025,7 @@ export const EditEventPage = () => {
               </div>
             </div>
 
-            <div className="pt-5 border-t border-border/50">
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <input
-                  type="checkbox"
-                  checked={formData.isPublic ?? true}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, isPublic: e.target.checked }))}
-                  className="size-5 rounded-md border-2 border-blue-300 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 transition-all duration-200"
-                />
-                <span className="text-sm font-medium group-hover:text-blue-600 transition-colors">Public event (visible to everyone)</span>
-              </label>
-            </div>
-          </CardContent>
+                      </CardContent>
         </Card>
 
         {/* Event Agendas Section */}
@@ -1002,11 +1036,6 @@ export const EditEventPage = () => {
                 <ListChecks className="size-5 text-white" />
               </div>
               Event Agendas
-              {agendas.length > 0 && (
-                <span className="ml-auto text-sm font-normal px-3 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
-                  {agendas.length} item{agendas.length > 1 ? 's' : ''}
-                </span>
-              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
@@ -1058,9 +1087,11 @@ export const EditEventPage = () => {
                         <TimePicker
                           value={agenda.endTime}
                           onChange={(v) => handleUpdateAgenda(agenda.id, 'endTime', v)}
-                          minTime={agenda.startTime || undefined}
                           placeholder="—"
                         />
+                        {errors[`agenda_${agenda.id}`] && (
+                          <p className="text-sm text-destructive">{errors[`agenda_${agenda.id}`]}</p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1100,7 +1131,7 @@ export const EditEventPage = () => {
           <Button 
             type="submit" 
             disabled={updateEventMutation.isPending} 
-            className="px-8 h-12 text-base gap-2 bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:from-amber-600 hover:to-orange-700 shadow-lg shadow-amber-500/25 transition-all duration-300 disabled:opacity-70"
+            className="px-8 h-12 text-base gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700 shadow-lg shadow-blue-500/25 transition-all duration-300 disabled:opacity-70"
           >
             {updateEventMutation.isPending ? (
               <>

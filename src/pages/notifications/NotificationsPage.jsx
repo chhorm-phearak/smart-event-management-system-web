@@ -15,7 +15,7 @@ export const NotificationsPage = () => {
   // Transform backend notification to frontend format
   const transformNotification = (notification) => ({
     id: notification.id,
-    type: notification.type?.toLowerCase() || 'general',
+    type: (notification.type === 'ORG_INVITE_RECEIVED' || notification.type === 'ORG_INVITE_ACCEPTED' || notification.type === 'ORG_INVITE_REJECTED') ? 'organization_member' : notification.type?.toLowerCase() || 'general',
     title: notification.title,
     message: notification.message,
     eventId: notification.event_id,
@@ -27,7 +27,7 @@ export const NotificationsPage = () => {
     actorUserId: notification.actor_user_id,
     timestamp: notification.created_at,
     read: notification.is_read || false,
-    status: notification.data?.status || 'pending',
+    status: notification.type === 'ORG_INVITE_ACCEPTED' ? 'accepted' : notification.type === 'ORG_INVITE_REJECTED' ? 'rejected' : notification.data?.status || 'pending',
     oldDate: notification.data?.old_date,
     newDate: notification.data?.new_date,
     oldTime: notification.data?.old_time,
@@ -115,13 +115,6 @@ export const NotificationsPage = () => {
       ));
       
       toast.success('Invitation accepted!');
-      
-      // Navigate based on type
-      if (notification.type === 'staff_invite' || notification.type === 'invitation') {
-        navigate(`/events/${notification.eventId}`);
-      } else if (notification.type === 'group_invite') {
-        navigate(`/groups/${notification.groupId}`);
-      }
     } catch (error) {
       console.error('Error accepting invite:', error);
       toast.error('Failed to accept invitation');
@@ -181,6 +174,7 @@ export const NotificationsPage = () => {
       case 'staff_invite':
       case 'invitation':
       case 'group_invite':
+      case 'organization_member':
         return (
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -208,6 +202,8 @@ export const NotificationsPage = () => {
         return 'bg-blue-100 text-blue-600 border-blue-200';
       case 'group_invite':
         return 'bg-purple-100 text-purple-600 border-purple-200';
+      case 'organization_member':
+        return 'bg-indigo-100 text-indigo-600 border-indigo-200';
       case 'schedule_change':
         return 'bg-orange-100 text-orange-600 border-orange-200';
       default:
@@ -217,7 +213,7 @@ export const NotificationsPage = () => {
 
   // Check if notification is an invite type
   const isInviteType = (type) => {
-    return ['staff_invite', 'group_invite', 'invitation'].includes(type);
+    return ['staff_invite', 'group_invite', 'invitation', 'organization_member'].includes(type);
   };
 
   const filteredNotifications = notifications.filter(notif => {
@@ -433,18 +429,20 @@ export const NotificationsPage = () => {
                               </button>
                             </div>
                           ) : (
-                            <button
-                              onClick={() => {
-                                if (notification.type === 'group_invite') {
-                                  navigate(`/groups/${notification.groupId}`);
-                                } else {
-                                  handleViewEvent(notification.eventId);
-                                }
-                              }}
-                              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
-                            >
-                              View {notification.type === 'group_invite' ? 'Group' : 'Event'}
-                            </button>
+                            notification.type !== 'organization_member' && (
+                              <button
+                                onClick={() => {
+                                  if (notification.type === 'group_invite') {
+                                    navigate(`/groups/${notification.groupId}`);
+                                  } else {
+                                    handleViewEvent(notification.eventId);
+                                  }
+                                }}
+                                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                              >
+                                {notification.type === 'group_invite' ? 'View Group' : 'View Event'}
+                              </button>
+                            )
                           )
                         ) : (
                           notification.eventId && (

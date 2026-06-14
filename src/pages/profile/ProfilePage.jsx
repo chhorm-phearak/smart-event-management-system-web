@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { authService } from '@/services';
+import { authService, uploadSingle } from '@/services';
+import { Upload, X, Camera } from 'lucide-react';
 
 export const ProfilePage = () => {
   const { user: authUser, setUser } = useAuth();
@@ -20,6 +21,9 @@ export const ProfilePage = () => {
     date_of_birth: '',
     img_url: '',
   });
+
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
 
   useEffect(() => {
     fetchProfile();
@@ -42,6 +46,11 @@ export const ProfilePage = () => {
         date_of_birth: userData.date_of_birth ? userData.date_of_birth.split('T')[0] : '',
         img_url: userData.img_url || '',
       });
+      
+      // Set image preview if user has an existing image
+      if (userData.img_url) {
+        setImagePreview(userData.img_url);
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to fetch profile');
       console.error('Error fetching profile:', err);
@@ -58,22 +67,74 @@ export const ProfilePage = () => {
     }));
   };
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Image size must be less than 5MB');
+        return;
+      }
+      
+      // Check file type
+      if (!file.type.startsWith('image/')) {
+        setError('Please select a valid image file');
+        return;
+      }
+      
+      setImageFile(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreview(e.target.result);
+      };
+      reader.readAsDataURL(file);
+      
+      // Clear any previous errors
+      setError(null);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    setFormData(prev => ({ ...prev, img_url: '' }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    try {
-      setIsSaving(true);
-      setError(null);
-      setSuccess(null);
+    setIsSaving(true);
+    setError(null);
+    setSuccess(null);
 
+    try {
       const updateData = {
-        first_name: formData.first_name,
-        last_name: formData.last_name,
+        first_name: formData.first_name || null,
+        last_name: formData.last_name || null,
+        email: formData.email || null,
         gender: formData.gender || null,
         contact: formData.contact || null,
         address: formData.address || null,
         date_of_birth: formData.date_of_birth || null,
         img_url: formData.img_url || null,
       };
+
+      // If there's a new image file, upload it first
+      if (imageFile) {
+        try {
+          const uploadResponse = await uploadSingle(imageFile);
+          const fileUrl = uploadResponse?.data?.file?.file_url;
+          if (fileUrl) {
+            // Handle both full URLs and relative paths
+            updateData.img_url = fileUrl.startsWith('http') ? fileUrl : `${window.location.origin}${fileUrl}`;
+          }
+        } catch (uploadError) {
+          console.error('Error uploading image:', uploadError);
+          setError('Failed to upload image. Please try again.');
+          return;
+        }
+      }
 
       const response = await authService.updateProfile(updateData);
       const updatedUser = response.data?.user;
@@ -164,16 +225,65 @@ export const ProfilePage = () => {
             {isEditing && (
               <div className="mt-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Image URL
+                  Profile Image
                 </label>
-                <input
-                  type="url"
-                  name="img_url"
-                  value={formData.img_url}
-                  onChange={handleInputChange}
-                  placeholder="https://example.com/image.jpg"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+                <div className="flex items-center gap-4">
+                  {/* Image Upload Area */}
+                  <div className="flex-1">
+                    <div className="relative">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageChange}
+                        className="hidden"
+                        id="profile-image-upload"
+                      />
+                      <label
+                        htmlFor="profile-image-upload"
+                        className="flex items-center justify-center w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                      >
+                        <Upload className="w-5 h-5 mr-2 text-gray-400" />
+                        <span className="text-sm text-gray-600">
+                          {imageFile ? imageFile.name : 'Choose image or drag and drop'}
+                        </span>
+                      </label>
+                    </div>
+                    {imageFile && (
+                      <p className="mt-2 text-xs text-gray-500">
+                        File size: {(imageFile.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    )}
+                  </div>
+                  
+                  {/* Remove Image Button */}
+                  {imagePreview && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveImage}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Remove image"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  )}
+                </div>
+                
+                {/* Image Preview */}
+                {imagePreview && (
+                  <div className="mt-4">
+                    <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
+                    <div className="relative inline-block">
+                      <img
+                        src={imagePreview}
+                        alt="Profile preview"
+                        className="w-20 h-20 rounded-full object-cover border-2 border-blue-100"
+                      />
+                      <div className="absolute bottom-0 right-0 bg-green-500 rounded-full p-1">
+                        <Camera className="w-3 h-3 text-white" />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

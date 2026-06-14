@@ -90,7 +90,7 @@ function TimePicker({
         position: 'fixed',
         top: rect.bottom + 8,
         left: rect.left,
-        zIndex: 9999,
+        zIndex: 99999,
       });
     }
   }, [open]);
@@ -139,7 +139,11 @@ function TimePicker({
     if (!minTime && !maxTime) return HOUR_12_OPTIONS;
     return HOUR_12_OPTIONS.filter((h12) => {
       const h24 = to24h(h12, pendingPeriod);
+      // For minTime, check if the latest possible time (hour:59) is still valid
+      // This allows the hour if minTime is within this hour
       if (minTime && toHHmm(h24, 59) < minTime) return false;
+      // For maxTime, check if the earliest possible time (hour:00) is valid
+      // This allows the hour if maxTime is within this hour
       if (maxTime && toHHmm(h24, 0) > maxTime) return false;
       return true;
     });
@@ -187,12 +191,12 @@ function TimePicker({
       {open && (
         <>
           <div
-            className="fixed inset-0 z-40"
+            className="fixed inset-0 z-30"
             aria-hidden="true"
             onClick={() => setOpen(false)}
           />
           {createPortal(
-          <div className="w-70 rounded-xl border border-border bg-card shadow-lg overflow-visible" style={dropdownStyle}>
+          <div className="w-72 rounded-xl border border-border bg-card shadow-lg overflow-visible" style={dropdownStyle}>
             <div className="p-4 border-b border-border bg-muted/50">
               <h3 className="font-semibold text-sm">Select time</h3>
             </div>
@@ -207,7 +211,7 @@ function TimePicker({
                     <SelectTrigger className="h-9 w-full">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent position="popper" sideOffset={4}>
+                    <SelectContent position="popper" sideOffset={4} className="z-[100000]">
                       {hour12Options.map((h) => (
                         <SelectItem key={h} value={String(h)}>
                           {h}
@@ -225,7 +229,7 @@ function TimePicker({
                     <SelectTrigger className="h-9 w-full">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent position="popper" sideOffset={4}>
+                    <SelectContent position="popper" sideOffset={4} className="z-[100000]">
                       {minuteOptions.map((opt) => (
                         <SelectItem key={opt.value} value={opt.value}>
                           {opt.label}
@@ -243,7 +247,7 @@ function TimePicker({
                     <SelectTrigger className="h-9 w-full">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent position="popper" sideOffset={4}>
+                    <SelectContent position="popper" sideOffset={4} className="z-[100000]">
                       {PERIOD_OPTIONS.map((opt) => (
                         <SelectItem key={opt.value} value={opt.value}>
                           {opt.label}

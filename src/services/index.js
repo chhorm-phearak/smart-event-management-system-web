@@ -10,3 +10,5 @@ export { userService } from './userService';
 export { default as api } from './api';
 export { uploadSingle } from './uploadService';
 export { attendeeService } from './attendeeService';
+export { chatService } from './chatService';
+export { globalChatService } from './globalChatService';

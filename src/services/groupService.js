@@ -35,9 +35,26 @@ export const groupService = {
     return response.data;
   },
 
+  // Update group by ID
+  updateGroup: async (groupId, data) => {
+    const requestData = {
+      name: data.name,
+      description: data.description,
+    };
+    
+    // Add image_url if it exists
+    if (data.image_url) {
+      requestData.image_url = data.image_url;
+    }
+    
+    const response = await api.put(`/groups/${groupId}`, requestData);
+    return response.data;
+  },
+
   // Create event in a group
   createGroupEvent: async (groupId, eventData) => {
     const response = await api.post(`/groups/${groupId}/events`, {
+      group_id: groupId,
       title: eventData.title,
       short_description: eventData.shortDescription,
       long_description: eventData.longDescription,

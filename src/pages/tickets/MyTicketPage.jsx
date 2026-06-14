@@ -176,7 +176,9 @@ export const MyTicketPage = () => {
     }
 
     try {
-      const sanitizedName = selectedTicket.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      // Sanitize filename: replace characters not allowed in filenames with underscores
+      // This regex allows letters, numbers, spaces, and common punctuation, but replaces others.
+      const sanitizedName = selectedTicket.title.replace(/[/\\?%*:#|"<>&.]/g, '_').trim();
       const timestamp = new Date().toISOString().slice(0, 10);
       const filename = `${sanitizedName}_ticket_${timestamp}.png`;
       
@@ -628,21 +630,7 @@ export const MyTicketPage = () => {
                 </div>
               </div>
 
-              {/* Important Notice */}
-              <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-5 mb-6">
-                <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <div>
-                    <p className="text-sm font-semibold text-yellow-900 mb-1">Important</p>
-                    <p className="text-xs text-yellow-800">
-                      Please arrive 15 minutes early. Bring a valid ID for verification.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
+              
               {/* Modal Actions */}
               <div className="flex gap-4">
                 <button

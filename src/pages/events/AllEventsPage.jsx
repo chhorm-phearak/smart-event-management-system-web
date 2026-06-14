@@ -378,7 +378,11 @@ export const AllEventsPage = () => {
 
     try {
       // Set filename based on event title and current date
-      const sanitizedName = title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      // Sanitize filename while preserving Unicode characters (including Khmer)
+      const sanitizedName = title
+        .replace(/[<>:"/\\|?*]/g, '_') // Remove invalid filename characters
+        .replace(/\s+/g, '_') // Replace spaces with underscores
+        .substring(0, 50); // Limit length to avoid issues
       const timestamp = new Date().toISOString().slice(0, 10);
       const filename = `${sanitizedName}_qr_${timestamp}.png`;
       
@@ -503,12 +507,12 @@ export const AllEventsPage = () => {
             </div>
 
             {/* Quick Action Card */}
-            <div className="bg-gradient-to-br from-amber-400 to-orange-500 rounded-3xl p-8 text-white flex-1">
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-3xl p-8 text-white flex-1">
               <div className="p-4 bg-white/20 rounded-2xl w-fit mb-5">
                 <Rocket className="w-7 h-7" />
               </div>
               <h3 className="text-2xl font-bold mb-2">Get Started</h3>
-              <p className="text-amber-100 mb-4">Browse events or create your own amazing experience</p>
+              <p className="text-blue-100 mb-4">Browse events or create your own amazing experience</p>
               <button className="flex items-center gap-2 font-semibold hover:gap-3 transition-all">
                 <span>Explore now</span>
                 <ArrowRight className="w-5 h-5" />

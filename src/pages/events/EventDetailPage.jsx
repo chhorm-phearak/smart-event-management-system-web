@@ -72,14 +72,26 @@ const mapStaff = (staff) => {
   }));
 };
 
+const FALLBACK_EVENT_IMAGE =
+  'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&h=600&fit=crop';
+
+const resolveImageUrl = (url) => {
+  if (!url || typeof url !== 'string') return FALLBACK_EVENT_IMAGE;
+  if (/^(https?:|data:|blob:)/i.test(url)) return url;
+  const base = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
+};
+
 const mapRawToEvent = (raw) => {
   if (!raw || typeof raw !== 'object') return null;
   const images = raw.images ?? raw.event_images ?? [];
   const firstImage = Array.isArray(images) ? images[0] : images;
-  const imageUrl =
+  const rawImageUrl =
     (firstImage && typeof firstImage === 'object' && (firstImage.image_url ?? firstImage.url)) ||
     (typeof firstImage === 'string' ? firstImage : null) ||
-    'https://via.placeholder.com/1200x400?text=Event';
+    raw.primary_image_url ||
+    null;
+  const imageUrl = resolveImageUrl(rawImageUrl);
   return {
     id: raw.id,
     title: raw.title ?? raw.name ?? '—',
@@ -101,7 +113,9 @@ const mapRawToEvent = (raw) => {
     status: raw.status ?? 'DRAFT',
     isPublic: raw.is_public ?? raw.isPublic ?? true,
     image: imageUrl,
-    images: Array.isArray(images) ? images.map(img => img.image_url ?? img.url ?? img) : [],
+    images: Array.isArray(images)
+      ? images.map((img) => resolveImageUrl(img?.image_url ?? img?.url ?? img))
+      : [],
     qrcode: (raw.qr_image_url || raw.qrcode) ?? raw.qr_code ?? '',
     qrTicket: raw.qr_ticket ?? raw.qrTicket ?? raw.ticket_code ?? raw.code ?? '',
     registrationRequired: raw.registration_required ?? true,
@@ -168,10 +182,20 @@ export const EventDetailPage = () => {
       
       // Otherwise fetch from API
       const response = await eventService.getEventById(id);
-      const apiEvent = response?.data?.event || response?.data || response?.event || response;
-      
-      if (!apiEvent?.id) return null;
-      
+      // The detail endpoint returns { event, images, agenda, staff } as siblings.
+      // Pick the right container, then merge sibling collections onto the event
+      // so mapRawToEvent can find images/agenda/staff.
+      const container = response?.data ?? response ?? {};
+      const baseEvent = container.event ?? container;
+      if (!baseEvent?.id) return null;
+
+      const apiEvent = {
+        ...baseEvent,
+        images: baseEvent.images ?? container.images ?? [],
+        agenda: baseEvent.agenda ?? container.agenda ?? baseEvent.agendas ?? [],
+        staff: baseEvent.staff ?? container.staff ?? [],
+      };
+
       const mapped = mapRawToEvent(apiEvent);
       return mapped;
     },
@@ -290,7 +314,9 @@ export const EventDetailPage = () => {
 
     try {
       // Set filename based on event title and current date
-      const sanitizedName = event.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      // Sanitize filename: replace characters not allowed in filenames with underscores
+      // This regex allows letters, numbers, spaces, and common punctuation, but replaces others.
+      const sanitizedName = event.title.replace(/[/\\?%*:#|"<>&.]/g, '_').trim();
       const timestamp = new Date().toISOString().slice(0, 10);
       const filename = `${sanitizedName}_qr_${timestamp}.png`;
       
@@ -422,14 +448,6 @@ export const EventDetailPage = () => {
           </button>
           
           <div className="flex items-center gap-3">
-            <span className={`px-3 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-full ${
-              event.status === 'PUBLISHED' ? 'bg-green-100 text-green-700' :
-              event.status === 'DRAFT' ? 'bg-yellow-100 text-yellow-700' :
-              event.status === 'CANCELLED' ? 'bg-red-100 text-red-700' :
-              'bg-gray-100 text-gray-600'
-            }`}>
-              {event.status}
-            </span>
             {isRegistered && (
               <span className="px-3 py-1.5 bg-blue-100 text-blue-700 text-xs font-semibold uppercase tracking-wider rounded-full">
                 ✓ Registered
@@ -447,6 +465,11 @@ export const EventDetailPage = () => {
             src={event.image} 
             alt={event.title}
             className="absolute inset-0 w-full h-full object-cover"
+            onError={(e) => {
+              if (e.target.src !== FALLBACK_EVENT_IMAGE) {
+                e.target.src = FALLBACK_EVENT_IMAGE;
+              }
+            }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent lg:bg-gradient-to-r lg:from-transparent lg:to-white/20"></div>
           
@@ -751,22 +774,22 @@ export const EventDetailPage = () => {
         </div>
       </div>
 
-      {/* QR Ticket Modal - Light Theme */}
+      {/* QR Ticket Modal */}
       {showQrModal && event && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full mx-4 max-h-[90vh] flex flex-col overflow-hidden my-auto">
             {/* Modal Header */}
-            <div className="bg-blue-600 p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+            <div className="flex-shrink-0 bg-gradient-to-r from-blue-600 to-indigo-600 p-8 text-white">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
                     <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
                     </svg>
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold text-white">Your Ticket</h2>
-                    <p className="text-blue-100 text-sm">Present at entrance</p>
+                    <h2 className="text-2xl lg:text-3xl font-bold">Your Ticket</h2>
+                    <p className="text-blue-100 text-base">Present this QR code at the event</p>
                   </div>
                 </div>
                 <button
@@ -780,108 +803,101 @@ export const EventDetailPage = () => {
               </div>
             </div>
 
-            {/* Ticket Content */}
-            <div className="p-6">
-              {/* Event Info */}
-              <div className="bg-gray-50 rounded-xl p-5 mb-6 border border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">{event.title}</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-3 text-gray-600">
-                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <span>{formatDate(event.eventDate)}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-gray-600">
-                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span>{formatTimeRange(event.startTime, event.endTime)}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-gray-600">
-                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    </svg>
-                    <span>{event.location}</span>
+            {/* Ticket Content - Scrollable */}
+            <div className="flex-1 overflow-y-auto p-8">
+              <div className="flex flex-col gap-6 mb-6 w-full">
+                {/* Event Info Card - Full width, above QR */}
+                <div className="w-full bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl p-6 border border-gray-200">
+                  <h3 className="text-xl font-bold text-gray-900 mb-4">{event.title}</h3>
+                  <div className="space-y-3 text-base text-gray-700">
+                    <div className="flex items-center gap-3">
+                      <svg className="w-5 h-5 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span className="font-medium">{formatDate(event.eventDate)}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <svg className="w-5 h-5 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span className="font-medium">{formatTimeRange(event.startTime, event.endTime)}</span>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <svg className="w-5 h-5 text-gray-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <span className="font-medium">{event.location}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* QR Code */}
-              <div className="bg-white border-2 border-gray-200 rounded-xl p-6 mb-6">
-                <div className="flex flex-col items-center">
-                  <div className="w-48 h-48 bg-white rounded-lg flex items-center justify-center">
+                {/* QR Code Section - Full width, below detail */}
+                <div className="w-full bg-white border-2 border-gray-200 rounded-xl p-8 flex flex-col items-center justify-center">
+                  <div className="w-72 h-72 bg-white border-4 border-blue-100 rounded-xl p-5 mb-4 flex items-center justify-center shadow-inner">
                     {hasQrImage ? (
                       <img
                         src={eventQrCode.startsWith('data:') ? eventQrCode : `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}${eventQrCode}`}
-                        alt="Event QR Code"
+                        alt="Ticket QR Code"
                         className="w-full h-full object-contain"
                         onError={(e) => {
                           e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDR2MW02IDExaDJtLTYgMGgtMnY0bTAtMTF2M20wMGguMDFNMTIgMTJoNC4wMU0xNiAyMGg0TTQgMTJoNG0xMiAwaC4wMU01IDhoMmExIDEgMCAwMDEtMVY1YTEgMSAwIDAwLTEtMUg1YTEgMSAwIDAwLTEgMXYyYTEgMSAwIDAwMSAxem0xMiAwaDJhMSAxIDAgMDAxLTFWNWExIDEgMCAwMC0xLTFoLTJhMSAxIDAgMDAtMSAxdjJhMSAxIDAgMDAxIDF6TTUgMjBoMmExIDEgMCAwMTEtMXYtMmExIDEgMCAwMC0xLTFINWExIDEgMCAwMC0xIDF2MmExIDEgMCAwMTEgMXoiIGZpbGw9IiM5Q0EzQUYiLz4KPC9zdmc+';
                         }}
                       />
                     ) : (
-                      <div className="w-full h-full bg-gray-100 rounded-lg flex items-center justify-center text-sm text-gray-500 text-center px-4">
-                        {isRegistered ? 'QR unavailable' : 'Register first'}
+                      <div className="w-full h-full bg-gray-100 rounded-lg flex items-center justify-center">
+                        <svg className="w-56 h-56 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zM3 21h8v-8H3v8zm2-6h4v4H5v-4zM13 3v8h8V3h-8zm6 6h-4V5h4v4zM13 13h2v2h-2zM15 15h2v2h-2zM13 17h2v2h-2zM17 17h2v2h-2zM19 19h2v2h-2zM15 19h2v2h-2zM17 13h2v2h-2zM19 15h2v2h-2z"/>
+                        </svg>
                       </div>
                     )}
                   </div>
-                  <p className="text-xs text-gray-500 mt-3">Scan at entrance</p>
+                  <p className="text-sm text-gray-600 text-center font-medium">
+                    Scan this QR code at the event entrance
+                  </p>
                 </div>
               </div>
 
-              {/* Ticket Code */}
-              <div className="bg-gray-50 rounded-xl p-4 mb-6 border border-gray-200">
-                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
+              {/* Ticket Code Section */}
+              <div className="bg-gray-50 rounded-xl p-5 mb-6">
+                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
                   Ticket Code
                 </label>
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 px-4 py-3 bg-white border border-gray-300 rounded-lg font-mono font-semibold text-gray-900 text-center text-sm">
+                  <div className="flex-1 px-5 py-4 bg-white border-2 border-gray-300 rounded-lg font-mono font-semibold text-lg text-gray-900 text-center">
                     {hasTicketCode ? eventTicketCode : 'N/A'}
                   </div>
                   <button
                     onClick={handleCopyTicketCode}
                     disabled={!hasTicketCode}
-                    className="px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors disabled:opacity-50"
-                    title="Copy"
+                    className="px-5 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Copy ticket code"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                     </svg>
+                    <span className="text-sm font-medium">Copy</span>
                   </button>
                 </div>
               </div>
 
-              {/* Notice */}
-              {event.bringValidId && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
-                  <div className="flex items-start gap-3">
-                    <svg className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <p className="text-sm text-yellow-800">
-                      Arrive 15 min early with valid ID
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex gap-3">
+              
+              {/* Modal Actions */}
+              <div className="flex gap-4">
                 <button
                   onClick={handleCloseQrModal}
-                  className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-semibold"
+                  className="flex-1 px-6 py-4 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold text-base"
                 >
                   Close
                 </button>
                 <button
                   onClick={handleDownloadQr}
-                  className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-semibold flex items-center justify-center gap-2"
+                  className="flex-1 px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold text-base flex items-center justify-center gap-2"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
-                  Download
+                  Download Ticket
                 </button>
               </div>
             </div>

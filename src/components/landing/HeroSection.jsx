@@ -1,6 +1,47 @@
+import { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import demoVideo from '@/assets/video/demo01.mp4';
 
 export const HeroSection = () => {
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const TARGET_RATE = 0.75;
+    const applyRate = () => {
+      if (video.playbackRate !== TARGET_RATE) {
+        video.playbackRate = TARGET_RATE;
+      }
+    };
+
+    applyRate();
+    video.addEventListener('loadedmetadata', applyRate);
+    video.addEventListener('play', applyRate);
+    video.addEventListener('ratechange', applyRate);
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          applyRate();
+          video.play().then(applyRate).catch(() => {});
+        } else {
+          video.pause();
+        }
+      },
+      { threshold: 0.5 }
+    );
+
+    observer.observe(video);
+    return () => {
+      observer.disconnect();
+      video.removeEventListener('loadedmetadata', applyRate);
+      video.removeEventListener('play', applyRate);
+      video.removeEventListener('ratechange', applyRate);
+    };
+  }, []);
+
   return (
     <section className="relative overflow-hidden bg-white">
       <div className="w-full px-[50px] py-20 lg:py-32">
@@ -55,13 +96,16 @@ export const HeroSection = () => {
             </div>
           </div>
           <div className="order-1 lg:order-2 flex justify-center">
-            <div className="w-full max-w-4xl xl:max-w-5xl aspect-[4/3] rounded-3xl bg-gradient-to-br from-orange-100 to-amber-100 border border-orange-200/50 flex items-center justify-center overflow-hidden shadow-xl">
-              <div className="text-center p-12">
-                <svg className="w-36 h-36 xl:w-44 xl:h-44 mx-auto text-orange-400/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-                <p className="text-orange-600/70 mt-6 text-xl font-medium">Event preview</p>
-              </div>
+            <div className="w-full max-w-4xl xl:max-w-5xl aspect-video rounded-3xl bg-black border border-gray-200/50 overflow-hidden shadow-xl">
+              <video
+                ref={videoRef}
+                className="w-full h-full object-contain"
+                src={demoVideo}
+                controls
+                muted
+                playsInline
+                loop
+              />
             </div>
           </div>
         </div>

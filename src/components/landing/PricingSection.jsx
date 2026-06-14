@@ -2,56 +2,59 @@ import { Link } from 'react-router-dom';
 
 const plans = [
   {
-    name: 'Starter',
+    name: 'Event Attendee',
     price: 'Free',
-    period: '',
-    description: 'Perfect for small events and getting started',
+    period: 'Forever',
+    description: 'Perfect for anyone who wants to join and attend events',
     features: [
-      'Up to 100 attendees',
-      'Basic event pages',
-      'Email support',
-      'Standard check-in',
-      'Basic analytics',
+      'Browse and discover events worldwide',
+      'Join unlimited events',
+      'Receive QR tickets for check-in',
+      'Event reminders and notifications',
+      'Connect with other attendees',
+      'Save favorite events',
     ],
-    cta: 'Get Started',
+    cta: 'Join as Attendee',
     ctaLink: '/register',
     highlighted: false,
     variant: 'outline',
   },
   {
-    name: 'Professional',
-    price: '$29',
+    name: 'Event Organizer',
+    price: '$19',
     period: '/month',
-    description: 'Ideal for growing businesses and regular events',
+    description: 'Create and manage your own events with powerful tools',
     features: [
-      'Up to 1,000 attendees',
-      'Custom branding',
-      'Priority support',
-      'Advanced check-in',
-      'Detailed analytics',
-      'Marketing tools',
-      'Mobile app access',
+      'Create unlimited events',
+      'Manage up to 500 attendees per event',
+      'Advanced attendee management',
+      'QR ticket generation system',
+      'Create and manage groups',
+      'Assign staff to events',
+      'Event analytics dashboard',
+      'Email marketing tools',
     ],
-    cta: 'Start Free Trial',
+    cta: 'Start as Organizer',
     ctaLink: '/register',
     highlighted: true,
     variant: 'solid',
   },
   {
-    name: 'Enterprise',
-    price: 'Custom',
-    period: '',
-    description: 'For large organizations with complex needs',
+    name: 'Professional Organizer',
+    price: '$49',
+    period: '/month',
+    description: 'For professional event managers and large organizations',
     features: [
-      'Unlimited attendees',
-      'White-label solution',
-      'Dedicated support',
-      'API access',
-      'Custom integrations',
-      'Advanced security',
-      'Training & onboarding',
+      'Everything in Organizer plan',
+      'Unlimited attendees per event',
+      'Advanced analytics & reporting',
+      'Priority customer support',
+      'Custom branding options',
+      'API access for integrations',
+      'Multiple organizer accounts',
+      'Advanced group management',
     ],
-    cta: 'Contact Sales',
+    cta: 'Go Professional',
     ctaLink: '/register',
     highlighted: false,
     variant: 'outline',
@@ -64,11 +67,11 @@ export const PricingSection = () => {
       <div className="w-full px-[50px]">
         <div className="text-center max-w-6xl mx-auto mb-20">
           <h2 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-gray-900 mb-6">
-            Choose Your <span className="text-blue-600">Perfect</span> Plan
+            Join <span className="text-blue-600">Events</span> or <span className="text-blue-600">Create</span> Them
           </h2>
           <p className="text-xl lg:text-2xl text-gray-600 leading-relaxed">
-            Start free and scale as you grow. All plans include our core
-            features with no hidden fees.
+            Whether you're here to attend amazing events or organize your own, 
+            we have the perfect plan for you. Start your journey today!
           </p>
         </div>
         <div className="grid md:grid-cols-3 gap-10 lg:gap-12 items-stretch">

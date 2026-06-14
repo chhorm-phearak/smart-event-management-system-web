@@ -5,6 +5,7 @@ import Logo from '@/assets/icons/MPR Smart Event.png';
 import { useSocket } from '@/hooks/useSocket';
 import { notificationService } from '@/services/notificationService';
 import toast from 'react-hot-toast';
+import { FloatingChatWidget } from '@/components/FloatingChatWidget';
 
 export const DashboardLayout = () => {
   const [isNotificationDropdownOpen, setIsNotificationDropdownOpen] = useState(false);
@@ -213,7 +214,7 @@ export const DashboardLayout = () => {
                 className={({ isActive }) =>
                   `group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${
                     isActive
-                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                      ? 'bg-blue-600 text-white shadow-md'
                       : 'text-gray-700 hover:bg-gray-100 hover:text-blue-600'
                   }`
                 }
@@ -238,7 +239,7 @@ export const DashboardLayout = () => {
       {/* Main Content Area - with left margin for fixed sidebar */}
       <div className="ml-64 flex flex-col min-h-screen">
         {/* Fixed Top Header Bar */}
-        <header className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 z-20">
+        <header className="sticky top-0 bg-white border-b border-gray-200 px-6 py-6 z-20">
           <div className="flex items-center justify-between">
             {/* Left side - My Ticket */}
             <div className="flex items-center">
@@ -366,10 +367,20 @@ export const DashboardLayout = () => {
                     setIsProfileDropdownOpen(!isProfileDropdownOpen);
                     setIsNotificationDropdownOpen(false);
                   }}
-                  className="flex items-center gap-2 focus:outline-none hover:opacity-80 transition-opacity"
+                  className="flex items-center gap-3 focus:outline-none hover:opacity-80 transition-opacity group"
                 >
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold shadow-md">
-                    {user?.first_name?.[0] || user?.email?.[0] || 'U'}
+                  <div className="text-right hidden sm:block">
+                    <p className="text-sm font-semibold text-gray-900 truncate max-w-[120px]">
+                      {user?.first_name && user?.last_name
+                        ? `${user.first_name} ${user.last_name}`
+                        : user?.first_name || user?.email?.split('@')[0] || 'User'}
+                    </p>
+                    <p className="text-xs text-gray-600 truncate max-w-[120px]">
+                      {user?.email || 'No email'}
+                    </p>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold shadow-md group-hover:shadow-lg transition-shadow">
+                    {user?.first_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
                   </div>
                 </button>
 
@@ -382,18 +393,18 @@ export const DashboardLayout = () => {
                     ></div>
                     <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-gray-200 z-20 overflow-hidden">
                       {/* User Info Header */}
-                      <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
+                      <div className="px-4 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold flex-shrink-0">
-                            {user?.first_name?.[0] || user?.email?.[0] || 'U'}
+                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold flex-shrink-0 text-lg shadow-md">
+                            {user?.first_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-900 truncate">
+                            <p className="text-base font-bold text-gray-900 truncate">
                               {user?.first_name && user?.last_name
                                 ? `${user.first_name} ${user.last_name}`
-                                : user?.first_name || user?.email || 'User'}
+                                : user?.first_name || user?.email?.split('@')[0] || 'User'}
                             </p>
-                            <p className="text-xs text-gray-600 truncate">
+                            <p className="text-sm text-gray-700 truncate font-medium">
                               {user?.email || 'No email'}
                             </p>
                           </div>
@@ -415,6 +426,7 @@ export const DashboardLayout = () => {
                           <span className="font-medium">Profile</span>
                         </button>
 
+                        {isOrganizer && (
                         <button
                           onClick={() => {
                             setIsProfileDropdownOpen(false);
@@ -427,6 +439,7 @@ export const DashboardLayout = () => {
                           </svg>
                           <span className="font-medium">Organization Members</span>
                         </button>
+                        )}
 
                         <button
                           onClick={() => {
@@ -470,6 +483,9 @@ export const DashboardLayout = () => {
           <Outlet />
         </main>
       </div>
+
+      {/* Floating Chat Widget */}
+      <FloatingChatWidget />
     </div>
   );
 };

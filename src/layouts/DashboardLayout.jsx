@@ -102,8 +102,20 @@ export const DashboardLayout = () => {
   };
 
   // Handle notification click - navigate to appropriate page
-  const handleNotificationClick = (item) => {
+  const handleNotificationClick = async (item) => {
     setIsNotificationDropdownOpen(false);
+
+    if (item.unread) {
+      try {
+        await notificationService.markAsRead(item.id);
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === item.id ? { ...n, unread: false } : n))
+        );
+      } catch (error) {
+        console.error('Error marking notification as read:', error);
+      }
+    }
+
     const type = item.type?.toLowerCase();
     
     if (type === 'group_invite' && item.groupId) {

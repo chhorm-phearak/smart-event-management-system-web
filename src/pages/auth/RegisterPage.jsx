@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import Logo from '@/assets/icons/MPR Smart Event.png';
+import { ChevronDown, Check } from 'lucide-react';
 
 export const RegisterPage = () => {
   const [formData, setFormData] = useState({
@@ -10,27 +11,59 @@ export const RegisterPage = () => {
     email: '',
     password: '',
     phone: '',
+    gender: '',
+    organization: '',
   });
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [step, setStep] = useState(1);
   const { register } = useAuth();
   const navigate = useNavigate();
+  const genderRef = useRef(null);
+  const [genderOpen, setGenderOpen] = useState(false);
+  const genderOptions = ['Male', 'Female', 'Other'];
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (genderRef.current && !genderRef.current.contains(event.target)) {
+        setGenderOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [e.target.name]: e.target.value.replace(/\s/g, ''),
     });
   // Clear error when user starts typing
     if (error) setError('');
   };
 
+  const handleNext = () => {
+    if (!formData.first_name || !formData.last_name || !formData.email || !formData.phone || !formData.password) {
+      setError('Please fill in all required fields.');
+      return;
+    }
+    setError('');
+    setStep(2);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    // Validate required fields
+    if (!formData.first_name || !formData.last_name || !formData.email || !formData.phone || !formData.password) {
+      setStep(1);
+      setError('Please fill in all required fields.');
+      return;
+    }
 
     // Validate terms acceptance
     if (!termsAccepted) {
@@ -145,6 +178,17 @@ export const RegisterPage = () => {
               </button>
             </div>
 
+            {/* Stepper */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between text-sm font-medium text-gray-500 mb-2">
+                <span className={step === 1 ? 'text-blue-600' : 'text-gray-400'}>Personal Info</span>
+                <span className={step === 2 ? 'text-blue-600' : 'text-gray-400'}>Account</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div className={`bg-blue-600 h-2 rounded-full transition-all ${step === 1 ? 'w-1/2' : 'w-full'}`}></div>
+              </div>
+            </div>
+
             {/* Error Message */}
             {error && (
               <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl text-red-800 flex items-center gap-3">
@@ -157,10 +201,10 @@ export const RegisterPage = () => {
 
             {/* Register Form */}
             <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="grid grid-cols-2 gap-4">
+              <div className={`grid grid-cols-2 gap-4 ${step === 1 ? '' : 'hidden'}`}>
                 <div>
                   <label htmlFor="first_name" className="block text-sm font-semibold text-gray-700 mb-2">
-                    First Name
+                    First Name <span className="text-red-500 ml-1">*</span>
                   </label>
                   <input
                     id="first_name"
@@ -176,7 +220,7 @@ export const RegisterPage = () => {
 
                 <div>
                   <label htmlFor="last_name" className="block text-sm font-semibold text-gray-700 mb-2">
-                    Last Name
+                    Last Name <span className="text-red-500 ml-1">*</span>
                   </label>
                   <input
                     id="last_name"
@@ -191,9 +235,9 @@ export const RegisterPage = () => {
                 </div>
               </div>
 
-              <div>
+              <div className={step === 1 ? '' : 'hidden'}>
                 <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
-                  Email Address
+                  Email Address <span className="text-red-500 ml-1">*</span>
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -214,9 +258,9 @@ export const RegisterPage = () => {
                 </div>
               </div>
 
-              <div>
+              <div className={step === 1 ? '' : 'hidden'}>
                 <label htmlFor="phone" className="block text-sm font-semibold text-gray-700 mb-2">
-                  Phone Number
+                  Phone Number <span className="text-red-500 ml-1">*</span>
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -237,9 +281,65 @@ export const RegisterPage = () => {
                 </div>
               </div>
 
-              <div>
+              <div className={step === 2 ? '' : 'hidden'}>
+                <label htmlFor="gender" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Gender
+                </label>
+                <div className="relative" ref={genderRef}>
+                  <button
+                    type="button"
+                    id="gender"
+                    onClick={() => setGenderOpen(!genderOpen)}
+                    className="w-full px-4 py-3 pr-10 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white text-left relative"
+                  >
+                    <span className={formData.gender ? 'text-gray-700' : 'text-gray-400'}>
+                      {formData.gender || 'Select Gender'}
+                    </span>
+                    <ChevronDown className="w-5 h-5 text-gray-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </button>
+                  {genderOpen && (
+                    <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                      {genderOptions.map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => {
+                            setFormData({ ...formData, gender: option });
+                            setGenderOpen(false);
+                          }}
+                          className={`w-full px-4 py-2.5 text-left flex items-center justify-between transition-colors ${
+                            formData.gender === option
+                              ? 'text-blue-600 bg-blue-50'
+                              : 'text-gray-700 hover:bg-blue-50'
+                          }`}
+                        >
+                          {option}
+                          {formData.gender === option && <Check className="w-4 h-4" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className={step === 2 ? '' : 'hidden'}>
+                <label htmlFor="organization" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Organization
+                </label>
+                <input
+                  id="organization"
+                  name="organization"
+                  type="text"
+                  value={formData.organization}
+                  onChange={handleChange}
+                  placeholder="Enter your organization"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                />
+              </div>
+
+              <div className={step === 1 ? '' : 'hidden'}>
                 <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-2">
-                  Password
+                  Password <span className="text-red-500 ml-1">*</span>
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -253,7 +353,7 @@ export const RegisterPage = () => {
                     type={showPassword ? 'text' : 'password'}
                     value={formData.password}
                     onChange={handleChange}
-                    placeholder="Create a strong password"
+                    placeholder="Enter your password"
                     required
                     className="w-full pl-12 pr-12 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   />
@@ -279,7 +379,7 @@ export const RegisterPage = () => {
                 </p>
               </div>
 
-              <div className="flex items-start gap-2">
+              <div className={`flex items-start gap-2 ${step === 2 ? '' : 'hidden'}`}>
                 <input
                   type="checkbox"
                   id="terms"
@@ -300,25 +400,47 @@ export const RegisterPage = () => {
                 </label>
               </div>
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3.5 px-4 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                    <span>Creating account...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Create Account</span>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                    </svg>
-                  </>
-                )}
-              </button>
+              {step === 1 ? (
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3.5 px-4 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+                >
+                  <span>Continue</span>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3.5 px-4 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                        <span>Creating account...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Create Account</span>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                        </svg>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStep(1)}
+                    className="w-full py-3 px-4 rounded-xl border-2 border-gray-300 font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Back
+                  </button>
+                </>
+              )}
             </form>
 
             {/* Divider */}

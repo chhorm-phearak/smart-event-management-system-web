@@ -165,8 +165,13 @@ export const NotificationsPage = () => {
     }
   };
 
-  const handleViewEvent = (eventId) => {
-    navigate(`/events/${eventId}`);
+  const handleViewEvent = async (notification) => {
+    if (notification?.id && !notification?.read) {
+      await handleMarkAsRead(notification.id);
+    }
+    if (notification?.eventId) {
+      navigate(`/events/${notification.eventId}`);
+    }
   };
 
   const getNotificationIcon = (type) => {
@@ -435,7 +440,7 @@ export const NotificationsPage = () => {
                                   if (notification.type === 'group_invite') {
                                     navigate(`/groups/${notification.groupId}`);
                                   } else {
-                                    handleViewEvent(notification.eventId);
+                                    handleViewEvent(notification);
                                   }
                                 }}
                                 className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
@@ -447,7 +452,7 @@ export const NotificationsPage = () => {
                         ) : (
                           notification.eventId && (
                             <button
-                              onClick={() => handleViewEvent(notification.eventId)}
+                              onClick={() => handleViewEvent(notification)}
                               className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
                             >
                               View Event

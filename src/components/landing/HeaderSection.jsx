@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import Logo from '@/assets/icons/MPR Smart Event.png';
 
 export const HeaderSection = () => {
   const navLinks = [
@@ -12,11 +13,15 @@ export const HeaderSection = () => {
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100">
       <nav className="w-full px-[50px]">
         <div className="flex items-center justify-between h-20 lg:h-24">
-          <Link
-            to="/landing-page"
-            className="text-3xl lg:text-4xl font-bold text-blue-600 hover:text-blue-700 transition-colors"
-          >
-            MPR Smart Event
+          <Link to="/landing-page" className="flex items-center gap-2">
+            <img
+              src={Logo}
+              alt="MPR Smart Event"
+              className="w-10 h-10 rounded-xl object-contain"
+            />
+            <span className="text-2xl lg:text-3xl font-bold text-blue-600 hover:text-blue-700 transition-colors">
+              MPR Smart Event
+            </span>
           </Link>
           <div className="flex items-center gap-10 lg:gap-12">
             {navLinks.map((link) => (

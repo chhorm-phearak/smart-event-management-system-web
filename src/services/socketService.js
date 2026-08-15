@@ -110,6 +110,15 @@ export const socketService = {
 
   // Check if connected
   isConnected: () => socket?.connected || false,
+
+  // Generic socket emit
+  emit: (event, data) => {
+    if (!socket?.connected) {
+      console.warn('Socket not connected, cannot emit:', event);
+      return;
+    }
+    socket.emit(event, data);
+  },
 };
 
 export default socketService;

@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
-import demoVideo from '@/assets/video/demo01.mp4';
+import { useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
+//import demoVideo from "@/assets/video/demo01.mp4";
 
 export const HeroSection = () => {
   const videoRef = useRef(null);
@@ -17,28 +17,31 @@ export const HeroSection = () => {
     };
 
     applyRate();
-    video.addEventListener('loadedmetadata', applyRate);
-    video.addEventListener('play', applyRate);
-    video.addEventListener('ratechange', applyRate);
+    video.addEventListener("loadedmetadata", applyRate);
+    video.addEventListener("play", applyRate);
+    video.addEventListener("ratechange", applyRate);
 
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
           applyRate();
-          video.play().then(applyRate).catch(() => {});
+          video
+            .play()
+            .then(applyRate)
+            .catch(() => {});
         } else {
           video.pause();
         }
       },
-      { threshold: 0.5 }
+      { threshold: 0.5 },
     );
 
     observer.observe(video);
     return () => {
       observer.disconnect();
-      video.removeEventListener('loadedmetadata', applyRate);
-      video.removeEventListener('play', applyRate);
-      video.removeEventListener('ratechange', applyRate);
+      video.removeEventListener("loadedmetadata", applyRate);
+      video.removeEventListener("play", applyRate);
+      video.removeEventListener("ratechange", applyRate);
     };
   }, []);
 
@@ -54,14 +57,13 @@ export const HeroSection = () => {
               Trusted by 50,000+ event organizers
             </div>
             <h1 className="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-bold text-gray-900 leading-tight mb-8">
-              Create{' '}
-              <span className="text-blue-600">Amazing</span>{' '}
-              <span className="text-blue-600">Events</span>{' '}
-              That People Love
+              Create <span className="text-blue-600">Amazing</span>{" "}
+              <span className="text-blue-600">Events</span> That People Love
             </h1>
             <p className="text-xl lg:text-2xl text-gray-600 mb-10 max-w-3xl leading-relaxed">
-              The all-in-one platform to create, manage, and promote your events.
-              From intimate gatherings to large conferences, we&apos;ve got you covered.
+              The all-in-one platform to create, manage, and promote your
+              events. From intimate gatherings to large conferences, we&apos;ve
+              got you covered.
             </p>
             <div className="flex flex-wrap gap-5 mb-12">
               <Link
@@ -74,7 +76,11 @@ export const HeroSection = () => {
                 type="button"
                 className="inline-flex items-center gap-2.5 px-8 py-4 text-lg border-2 border-gray-300 text-gray-700 font-semibold rounded-xl hover:border-gray-400 hover:bg-gray-50 transition-colors"
               >
-                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                <svg
+                  className="w-6 h-6"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
                   <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
                 </svg>
                 Watch Demo
@@ -82,14 +88,34 @@ export const HeroSection = () => {
             </div>
             <div className="flex gap-12 text-gray-500">
               <div className="flex items-center gap-3">
-                <svg className="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                <svg
+                  className="w-7 h-7 text-blue-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                  />
                 </svg>
                 <span className="text-lg font-medium">50,000+ organizers</span>
               </div>
               <div className="flex items-center gap-3">
-                <svg className="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                <svg
+                  className="w-7 h-7 text-blue-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
                 </svg>
                 <span className="text-lg font-medium">1M+ events created</span>
               </div>
@@ -97,15 +123,16 @@ export const HeroSection = () => {
           </div>
           <div className="order-1 lg:order-2 flex justify-center">
             <div className="w-full max-w-4xl xl:max-w-5xl aspect-video rounded-3xl bg-black border border-gray-200/50 overflow-hidden shadow-xl">
-              <video
-                ref={videoRef}
-                className="w-full h-full object-contain"
-                src={demoVideo}
-                controls
-                muted
-                playsInline
-                loop
-              />
+              <div className="w-full max-w-4xl xl:max-w-5xl aspect-video rounded-3xl bg-black border border-gray-200/50 overflow-hidden shadow-xl">
+                <iframe
+                  className="w-full h-full"
+                  src="https://www.youtube-nocookie.com/embed/7IHRcsJ6V0o?si=tgQmpgc9aw3Z19UO"
+                  title="YouTube video player"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  allowFullScreen
+                />
+              </div>
             </div>
           </div>
         </div>

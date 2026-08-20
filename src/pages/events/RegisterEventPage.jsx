@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { eventService } from '@/services';
 
 export const RegisterEventPage = () => {
   const navigate = useNavigate();
@@ -67,7 +66,7 @@ export const RegisterEventPage = () => {
     }
     if (!formData.phone.trim()) {
       newErrors.phone = 'Phone number is required';
-    } else if (!/^[\d\s\-\+\(\)]+$/.test(formData.phone)) {
+    } else if (!/^[\d\s+()-]+$/.test(formData.phone)) {
       newErrors.phone = 'Please enter a valid phone number';
     }
 

@@ -273,6 +273,8 @@ export const AllEventsPage = () => {
   const debouncedSearch = useDebounce(searchQuery, 300);
 
   useEffect(() => {
+    // Pagination is derived from filter changes, so reset it when a filter settles.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentPage(1);
   }, [debouncedSearch, selectedCategory, selectedDate]);
 

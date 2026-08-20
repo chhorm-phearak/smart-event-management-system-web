@@ -386,7 +386,7 @@ export const ManageAttendeesPage = () => {
                         pages.push(totalPages);
                       }
                       
-                      return pages.map((page, index) => {
+                      return pages.map((page) => {
                         if (page === 'ellipsis-start' || page === 'ellipsis-end') {
                           return (
                             <span key={page} className="w-8 h-8 flex items-center justify-center text-gray-400">

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { groupService, eventService } from '@/services';
+import { groupService } from '@/services';
 import { useAuth } from '@/context/AuthContext';
 
 
@@ -53,24 +53,11 @@ export const GroupDetailPage = () => {
   const { user } = useAuth();
 
 
-  useEffect(() => {
-    const loadAllData = async () => {
-      await Promise.all([
-        fetchGroupDetails(),
-        fetchGroupEvents(),
-        fetchGroupMembers()
-      ]);
-      setLoading(false);
-    };
-    
-    loadAllData();
-  }, [id]);
-
   const organizationId = user?.organization_id ?? user?.organizationId ?? user?.organization?.id ?? null;
   // Same rule as DashboardLayout: only users linked to an organization can manage/create groups
   const isOrganizer = !!organizationId;
 
-  const fetchGroupDetails = async () => {
+  async function fetchGroupDetails() {
     try {
       // Use real API call to get group details
       const response = await groupService.getGroupDetail(id);
@@ -100,9 +87,9 @@ export const GroupDetailPage = () => {
       console.error('Error fetching group details:', error);
       setLoading(false);
     }
-  };
+  }
 
-  const fetchGroupEvents = async () => {
+  async function fetchGroupEvents() {
     try {
       // Use real API call to get group events
       const response = await groupService.getGroupDetail(id);
@@ -148,9 +135,9 @@ export const GroupDetailPage = () => {
     } catch (error) {
       console.error('Error fetching group events:', error);
     }
-  };
+  }
 
-  const fetchGroupMembers = async () => {
+  async function fetchGroupMembers() {
     try {
       // Use real API call to get group members
       const response = await groupService.getGroupDetail(id);
@@ -190,7 +177,20 @@ export const GroupDetailPage = () => {
     } catch (error) {
       console.error('Error fetching group members:', error);
     }
-  };
+  }
+
+  useEffect(() => {
+    const loadAllData = async () => {
+      await Promise.all([
+        fetchGroupDetails(),
+        fetchGroupEvents(),
+        fetchGroupMembers()
+      ]);
+      setLoading(false);
+    };
+
+    loadAllData();
+  }, [id]);
 
   const handleEventClick = (eventId) => {
     navigate(`/events/${eventId}`, { state: { fromGroup: id } });

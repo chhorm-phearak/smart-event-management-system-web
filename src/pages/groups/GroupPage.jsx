@@ -244,6 +244,7 @@ export const GroupPage = () => {
   const [inviteInfo, setInviteInfo] = useState(null); // Store invite link information
   const [inviteInfoLoading, setInviteInfoLoading] = useState(false);
   const [latestInviteLinks, setLatestInviteLinks] = useState([]); // Store latest invite links for organization
+  const [, setLatestInviteLinksLoading] = useState(false);
   const [checkingExistingLink, setCheckingExistingLink] = useState(false); // Loading state for checking existing links
 
   // Chat tab states

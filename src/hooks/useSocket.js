@@ -1,17 +1,8 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import socketService from '@/services/socketService';
 
 export const useSocket = () => {
-  const socketRef = useRef(null);
-
-  useEffect(() => {
-    socketRef.current = socketService.connect();
-
-    return () => {
-      // Don't disconnect on unmount - socket should persist across pages
-      // socketService.disconnect();
-    };
-  }, []);
+  const [socket] = useState(() => socketService.connect());
 
   const onNotification = useCallback((callback) => {
     socketService.onNotification(callback);
@@ -47,7 +38,7 @@ export const useSocket = () => {
   }, []);
 
   return {
-    socket: socketRef.current,
+    socket,
     onNotification,
     joinOrganization,
     leaveOrganization,

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { groupService, userService, chatService, socketService, globalChatService } from '@/services';
 import api from '@/services/api';
 import EmojiPicker, { EmojiStyle, Theme } from 'emoji-picker-react';
@@ -29,6 +30,7 @@ import {
 
 const DEBOUNCE_MS = 400;
 
+let i18nRefs = { t: (k) => k, locale: 'en-US' };
 // ---------- Chat helpers ----------
 const DEFAULT_AVATAR = 'https://ui-avatars.com/api/?background=3b82f6&color=fff&name=';
 
@@ -37,7 +39,7 @@ const getSenderName = (sender) => {
   const fn = sender.first_name || '';
   const ln = sender.last_name || '';
   const full = `${fn} ${ln}`.trim();
-  return full || sender.email || 'Unknown';
+  return full || sender.email || i18nRefs.t('groups.unknown');
 };
 
 const getSenderAvatar = (sender) => {
@@ -48,7 +50,7 @@ const getSenderAvatar = (sender) => {
 const formatMessageTime = (iso) => {
   if (!iso) return '';
   const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString(i18nRefs.locale, { hour: '2-digit', minute: '2-digit' });
 };
 
 const formatPreviewTime = (iso) => {
@@ -58,29 +60,29 @@ const formatPreviewTime = (iso) => {
   const diffMs = now - d;
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   if (d.toDateString() === now.toDateString()) {
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleTimeString(i18nRefs.locale, { hour: '2-digit', minute: '2-digit' });
   }
-  if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7) return d.toLocaleDateString([], { weekday: 'short' });
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  if (diffDays === 1) return i18nRefs.t('groups.yesterday');
+  if (diffDays < 7) return d.toLocaleDateString(i18nRefs.locale, { weekday: 'short' });
+  return d.toLocaleDateString(i18nRefs.locale, { month: 'short', day: 'numeric' });
 };
 
 const formatDateLabel = (iso) => {
   if (!iso) return '';
   const d = new Date(iso);
   const now = new Date();
-  if (d.toDateString() === now.toDateString()) return 'Today';
+  if (d.toDateString() === now.toDateString()) return i18nRefs.t('groups.today');
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
-  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
-  return d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
+  if (d.toDateString() === yesterday.toDateString()) return i18nRefs.t('groups.yesterday');
+  return d.toLocaleDateString(i18nRefs.locale, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
 };
 
 const formatFileSize = (bytes) => {
   if (!bytes && bytes !== 0) return '';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1024) return i18nRefs.t('groups.fileSizeB', { size: bytes });
+  if (bytes < 1024 * 1024) return i18nRefs.t('groups.fileSizeKB', { size: (bytes / 1024).toFixed(1) });
+  return i18nRefs.t('groups.fileSizeMB', { size: (bytes / (1024 * 1024)).toFixed(1) });
 };
 // -----------------------------------------------------------------------------
 
@@ -160,23 +162,17 @@ const OrganizationRequiredModal = ({ isOpen, onClose, onRegister }) => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
-          <h3 className="text-2xl font-bold text-gray-900 mb-3">Organization Required</h3>
-          <p className="text-gray-500 mb-8">
-            You need to register as an organization to create groups. Join as an organizer to unlock this feature and start building your community!
-          </p>
+          <h3 className="text-2xl font-bold text-gray-900 mb-3">{t('groups.organizationRequired')}</h3>
+          <p className="text-gray-500 mb-8">{t('groups.organizationRequiredDesc')}</p>
           <div className="flex gap-3">
             <button
               onClick={onClose}
               className="flex-1 px-5 py-3 border-2 border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-all"
-            >
-              Cancel
-            </button>
+            >{t('groups.cancel')}</button>
             <button
               onClick={onRegister}
               className="flex-1 px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/25 hover:shadow-xl transition-all"
-            >
-              Register Organization
-            </button>
+            >{t('groups.registerOrganization')}</button>
           </div>
         </div>
       </div>
@@ -187,6 +183,9 @@ const OrganizationRequiredModal = ({ isOpen, onClose, onRegister }) => {
 export const GroupPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t, locale } = useLanguage();
+  i18nRefs.t = t;
+  i18nRefs.locale = locale;
   const organizationId = user?.organization_id ?? user?.organizationId ?? user?.organization?.id ?? null;
   // Same rule as DashboardLayout: only users linked to an organization can manage/create groups
   const isOrganizer = !!organizationId;
@@ -236,7 +235,7 @@ export const GroupPage = () => {
   // Invite Link states
   const [inviteMaxUses, setInviteMaxUses] = useState(10);
   const [inviteExpiresIn, setInviteExpiresIn] = useState(30); // days
-  const [inviteMessage, setInviteMessage] = useState('Join our awesome group!');
+  const [inviteMessage, setInviteMessage] = useState(t('groups.joinAwesomeGroupPlaceholder'));
   
   // Custom dropdown state
   const [showGroupDropdown, setShowGroupDropdown] = useState(false);
@@ -558,7 +557,7 @@ export const GroupPage = () => {
       setShowUpdateModal(false);
       await fetchGroupsData();
       
-      alert('Group updated successfully!');
+      alert(t('groups.groupUpdatedSuccess'));
     } catch (err) {
       console.error('Error updating group:', err);
       console.error('Error response:', err.response?.data);
@@ -574,13 +573,13 @@ export const GroupPage = () => {
     if (file) {
       // Validate file type
       if (!file.type.startsWith('image/')) {
-        setError('Please select an image file');
+        setError(t('groups.pleaseSelectImageFile'));
         return;
       }
       
       // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        setError('Image size should be less than 5MB');
+        setError(t('groups.imageSizeLessThan5MB'));
         return;
       }
       
@@ -622,13 +621,13 @@ export const GroupPage = () => {
     if (file) {
       // Validate file type
       if (!file.type.startsWith('image/')) {
-        setError('Please select an image file');
+        setError(t('groups.pleaseSelectImageFile'));
         return;
       }
       
       // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        setError('Image size should be less than 5MB');
+        setError(t('groups.imageSizeLessThan5MB'));
         return;
       }
       
@@ -666,13 +665,13 @@ export const GroupPage = () => {
       
       // Validate file type
       if (!file.type.startsWith('image/')) {
-        setError('Please select an image file');
+        setError(t('groups.pleaseSelectImageFile'));
         return;
       }
       
       // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        setError('Image size should be less than 5MB');
+        setError(t('groups.imageSizeLessThan5MB'));
         return;
       }
       
@@ -713,13 +712,13 @@ export const GroupPage = () => {
       
       // Validate file type
       if (!file.type.startsWith('image/')) {
-        setError('Please select an image file');
+        setError(t('groups.pleaseSelectImageFile'));
         return;
       }
       
       // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        setError('Image size should be less than 5MB');
+        setError(t('groups.imageSizeLessThan5MB'));
         return;
       }
       
@@ -772,7 +771,7 @@ export const GroupPage = () => {
       // Refresh groups to get updated event count
       await fetchGroupsData();
       
-      alert('Event created successfully!');
+      alert(t('groups.eventCreatedSuccess'));
     } catch (err) {
       console.error('Error creating event:', err);
       console.error('Error response:', err.response?.data); // Debug log
@@ -793,11 +792,11 @@ export const GroupPage = () => {
       // Refresh groups data to include the new group
       await fetchGroupsData();
       
-      alert('Invitation accepted! You have joined the group.');
+      alert(t('groups.invitationAcceptedJoined'));
       
     } catch (error) {
       console.error('Failed to accept invitation:', error);
-      alert(`Failed to accept invitation: ${error.response?.data?.message || error.message}`);
+      alert(t('groups.failedAcceptInvitation', { message: error.response?.data?.message || error.message }));
     }
   };
 
@@ -809,11 +808,11 @@ export const GroupPage = () => {
       // Remove from pending invitations
       setInvitations(invitations.filter(inv => inv.id !== invitationId));
       
-      alert('Invitation rejected.');
+      alert(t('groups.invitationRejected'));
       
     } catch (error) {
       console.error('Failed to reject invitation:', error);
-      alert(`Failed to reject invitation: ${error.response?.data?.message || error.message}`);
+      alert(t('groups.failedRejectInvitation', { message: error.response?.data?.message || error.message }));
     }
   };
 
@@ -835,14 +834,14 @@ export const GroupPage = () => {
       console.log('User invited successfully:', response.data);
       
       // You could add a success notification here
-      alert('User invited successfully!');
+      alert(t('groups.userInvitedSuccess'));
       
       // Optionally refresh the user list or update UI state
       // For now, just log the success
       
     } catch (error) {
       console.error('Failed to invite user:', error);
-      alert(`Failed to invite user: ${error.response?.data?.message || error.message}`);
+      alert(t('groups.failedInviteUser', { message: error.response?.data?.message || error.message }));
     }
   };
 
@@ -859,11 +858,11 @@ export const GroupPage = () => {
 
       console.log('Email invitation sent successfully:', response.data);
       
-      alert('Email invitation sent successfully!');
+      alert(t('groups.emailInvitationSent'));
       
     } catch (error) {
       console.error('Failed to send email invitation:', error);
-      alert(`Failed to send email invitation: ${error.response?.data?.message || error.message}`);
+      alert(t('groups.failedSendEmailInvitation', { message: error.response?.data?.message || error.message }));
     }
   };
 
@@ -899,7 +898,7 @@ export const GroupPage = () => {
       
       // Auto-copy to clipboard
       navigator.clipboard.writeText(inviteUrl);
-      alert('Invite link generated and copied to clipboard!');
+      alert(t('groups.inviteLinkCopied'));
       
     } catch (error) {
       console.error('Failed to generate invite link:', error);
@@ -1558,7 +1557,7 @@ export const GroupPage = () => {
   // Delete message handler
   const handleDeleteMessage = async (messageId) => {
     if (!selectedChatGroup?.id) return;
-    if (!window.confirm('Delete this message? This cannot be undone.')) return;
+    if (!window.confirm(t('groups.deleteMessageConfirm'))) return;
     try {
       setDeletingMessageId(messageId);
       setOpenMessageMenuId(null);
@@ -1679,7 +1678,7 @@ export const GroupPage = () => {
 
   // Global Chat: Delete message
   const handleDeleteGlobalMessage = async (messageId) => {
-    if (!window.confirm('Delete this message?')) return;
+    if (!window.confirm(t('groups.deleteMessageConfirmSimple'))) return;
     try {
       setGlobalDeletingMessageId(messageId);
       setGlobalOpenMessageMenuId(null);
@@ -1698,7 +1697,7 @@ export const GroupPage = () => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
     if (globalPendingFiles.length + files.length > 5) {
-      alert('You can attach up to 5 files.');
+      alert(t('groups.max5Files'));
       return;
     }
     const valid = files.filter((f) => {
@@ -1759,7 +1758,7 @@ export const GroupPage = () => {
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center justify-between mb-6">
             <span>{error}</span>
-            <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700" aria-label="Dismiss">×</button>
+            <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700" aria-label={t('groups.dismiss')}>×</button>
           </div>
         )}
 
@@ -1773,8 +1772,8 @@ export const GroupPage = () => {
                   <UsersRound className="w-8 h-8 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-3xl font-bold text-white">Groups</h1>
-                  <p className="text-blue-100">Join communities and participate in group events</p>
+                  <h1 className="text-3xl font-bold text-white">{t('groups.groups')}</h1>
+                  <p className="text-blue-100">{t('groups.groupsSubtitle')}</p>
                 </div>
               </div>
 
@@ -1785,7 +1784,7 @@ export const GroupPage = () => {
                   className="flex items-center gap-2 bg-white text-blue-600 px-6 py-3 rounded-xl hover:bg-blue-50 transition-all font-semibold shadow-lg"
                 >
                   <Plus className="w-5 h-5" />
-                  <span>Create Group</span>
+                  <span>{t('groups.createGroup')}</span>
                 </button>
               )}
             </div>
@@ -1799,7 +1798,7 @@ export const GroupPage = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold text-gray-900">{groups.length}</p>
-                <p className="text-sm text-gray-500">All Groups</p>
+                <p className="text-sm text-gray-500">{t('groups.allGroups')}</p>
               </div>
             </div>
             <div className="w-px h-12 bg-gray-200" />
@@ -1809,7 +1808,7 @@ export const GroupPage = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold text-gray-900">{myGroups.length}</p>
-                <p className="text-sm text-gray-500">My Groups</p>
+                <p className="text-sm text-gray-500">{t('groups.myGroups')}</p>
               </div>
             </div>
             {pendingInvitations.length > 0 && (
@@ -1822,7 +1821,7 @@ export const GroupPage = () => {
                   </div>
                   <div>
                     <p className="text-2xl font-bold text-gray-900">{pendingInvitations.length}</p>
-                    <p className="text-sm text-gray-500">Invitations</p>
+                    <p className="text-sm text-gray-500">{t('groups.invitations')}</p>
                   </div>
                 </div>
               </>
@@ -1833,54 +1832,50 @@ export const GroupPage = () => {
         {/* Tabs & Search */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
           {/* Tab Pills */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0 overflow-x-auto pb-2">
             <button
               onClick={() => setActiveTab('all')}
-              className={`px-5 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 ${
+              className={`px-5 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${
                 activeTab === 'all'
                   ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
                   : 'bg-white text-gray-600 border border-gray-200 hover:border-blue-300 hover:text-blue-600'
               }`}
             >
-              <Layers className="w-4 h-4" />
-              All Groups
-            </button>
+              <Layers className="w-4 h-4" />{t('groups.allGroups')}</button>
             {isOrganizer && (
               <button
                 onClick={() => setActiveTab('my')}
-                className={`px-5 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 ${
+                className={`px-5 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${
                   activeTab === 'my'
                     ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
                     : 'bg-white text-gray-600 border border-gray-200 hover:border-blue-300 hover:text-blue-600'
                 }`}
               >
-                <Users className="w-4 h-4" />
-                My Groups
-              </button>
+                <Users className="w-4 h-4" />{t('groups.myGroups')}</button>
             )}
             {isOrganizer && (
               <button
                 onClick={() => setActiveTab('invite')}
-                className={`px-5 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 ${
+                className={`px-5 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${
                   activeTab === 'invite'
                     ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
                     : 'bg-white text-gray-600 border border-gray-200 hover:border-blue-300 hover:text-blue-600'
                 }`}
               >
                 <UserPlus className="w-4 h-4" />
-                Invite User
+                {t('groups.inviteUser')}
               </button>
             )}
             <button
               onClick={() => setActiveTab('chat')}
-              className={`px-5 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 ${
+              className={`px-5 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${
                 activeTab === 'chat'
                   ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
                   : 'bg-white text-gray-600 border border-gray-200 hover:border-blue-300 hover:text-blue-600'
               }`}
             >
               <MessageCircle className="w-4 h-4" />
-              Chat
+              {t('groups.chat')}
               {(() => {
                 const total = conversations.reduce((sum, c) => sum + (c.unread_count || 0), 0);
                 return total > 0 ? (
@@ -1892,7 +1887,7 @@ export const GroupPage = () => {
             </button>
             <button
               onClick={() => setActiveTab('global')}
-              className={`px-5 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 ${
+              className={`px-5 py-2.5 rounded-xl font-semibold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${
                 activeTab === 'global'
                   ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
                   : 'bg-white text-gray-600 border border-gray-200 hover:border-blue-300 hover:text-blue-600'
@@ -1900,17 +1895,15 @@ export const GroupPage = () => {
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Community Chat
-            </button>
+              </svg>{t('groups.communityChat')}</button>
           </div>
 
           {/* Search Bar */}
-          <div className="relative min-w-[300px]">
+          <div className="relative min-w-0 sm:min-w-[300px]">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Search groups..."
+              placeholder={t('groups.searchGroupsPlaceholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1928,13 +1921,13 @@ export const GroupPage = () => {
             <div className="p-4 border-b border-gray-200 bg-white">
               <h3 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
                 <MessageCircle className="w-5 h-5 text-blue-600" />
-                Conversations
+                {t('groups.conversations')}
               </h3>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search conversations..."
+                  placeholder={t('groups.searchConversationsPlaceholder')}
                   value={chatSearchTerm}
                   onChange={(e) => setChatSearchTerm(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -1949,8 +1942,8 @@ export const GroupPage = () => {
               ) : chatGroups.length === 0 ? (
                 <div className="text-center p-8">
                   <MessageCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-sm font-medium text-gray-700 mb-1">No conversations</p>
-                  <p className="text-xs text-gray-500">Join a group to start chatting</p>
+                  <p className="text-sm font-medium text-gray-700 mb-1">{t('groups.noConversations')}</p>
+                  <p className="text-xs text-gray-500">{t('groups.joinGroupToChat')}</p>
                 </div>
               ) : (
                 chatGroups.map((group) => {
@@ -1958,7 +1951,7 @@ export const GroupPage = () => {
                   const lm = group.last_message;
                   const previewText = lm
                     ? `${lm.is_own ? 'You: ' : (lm.sender_name ? `${lm.sender_name.split(' ')[0]}: ` : '')}${lm.message_type === 'file' ? '📎 Attachment' : (lm.content || '')}`
-                    : 'No messages yet';
+                    : t('groups.noMessagesYet');
                   const previewTime = lm ? formatPreviewTime(lm.created_at) : '';
                   const unread = group.unread_count || 0;
                   const avatarSrc = group.image_url || `${DEFAULT_AVATAR}${encodeURIComponent(group.name || 'G')}`;
@@ -2014,8 +2007,8 @@ export const GroupPage = () => {
                   <div className="w-20 h-20 bg-white rounded-full shadow-lg flex items-center justify-center mb-4">
                     <MessageCircle className="w-10 h-10 text-blue-600" />
                   </div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">Select a conversation</h3>
-                  <p className="text-gray-500 max-w-sm">Choose a group from the sidebar to start chatting with members</p>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">{t('groups.selectConversation')}</h3>
+                  <p className="text-gray-500 max-w-sm">{t('groups.selectConversationHint')}</p>
                 </div>
               )
             ) : (
@@ -2026,7 +2019,7 @@ export const GroupPage = () => {
                     <button
                       onClick={() => setSelectedChatGroup(null)}
                       className="md:hidden p-1 -ml-1 text-gray-500 hover:text-gray-900"
-                      title="Back"
+                      title={t('groups.back')}
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -2041,15 +2034,15 @@ export const GroupPage = () => {
                       <h3 className="font-bold text-gray-900 truncate">{selectedChatGroup.name}</h3>
                       <p className="text-xs text-gray-500 flex items-center gap-1.5">
                         <span className="w-2 h-2 bg-green-500 rounded-full inline-block"></span>
-                        {selectedChatGroup.member_count || 0} members
+                        {t('groups.members', { count: selectedChatGroup.member_count || 0 })}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600" title="Search messages">
+                    <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600" title={t('groups.searchMessagesPlaceholder')}>
                       <Search className="w-5 h-5" />
                     </button>
-                    <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600" title="More">
+                    <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600" title={t('groups.more')}>
                       <MoreVertical className="w-5 h-5" />
                     </button>
                   </div>
@@ -2076,8 +2069,8 @@ export const GroupPage = () => {
                   ) : chatMessages.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 text-center">
                       <MessageCircle className="w-12 h-12 text-gray-300 mb-3" />
-                      <p className="text-sm font-medium text-gray-700">No messages yet</p>
-                      <p className="text-xs text-gray-500">Be the first to say hello 👋</p>
+                      <p className="text-sm font-medium text-gray-700">{t('groups.noMessagesYet')}</p>
+                      <p className="text-xs text-gray-500">{t('groups.beFirstToSayHello')}</p>
                     </div>
                   ) : (
                     chatMessages.map((msg, idx) => {
@@ -2114,7 +2107,7 @@ export const GroupPage = () => {
                                     setOpenMessageMenuId(openMessageMenuId === msg.id ? null : msg.id);
                                   }}
                                   className="p-1 rounded-full hover:bg-gray-200 text-gray-500"
-                                  title="Message options"
+                                  title={t('groups.messageOptions')}
                                 >
                                   <MoreVertical className="w-4 h-4" />
                                 </button>
@@ -2183,7 +2176,7 @@ export const GroupPage = () => {
                                         className={`p-1.5 rounded-lg ${
                                           isMe ? 'hover:bg-blue-700/40 text-white' : 'hover:bg-gray-100 text-gray-600'
                                         }`}
-                                        title="Cancel (Esc)"
+                                        title={t('groups.cancelEsc')}
                                       >
                                         <XIcon className="w-4 h-4" />
                                       </button>
@@ -2193,7 +2186,7 @@ export const GroupPage = () => {
                                         className={`p-1.5 rounded-lg disabled:opacity-50 ${
                                           isMe ? 'hover:bg-blue-700/40 text-white' : 'hover:bg-blue-50 text-blue-600'
                                         }`}
-                                        title="Save (Enter)"
+                                        title={t('groups.saveEnter')}
                                       >
                                         <Check className="w-4 h-4" />
                                       </button>
@@ -2259,7 +2252,7 @@ export const GroupPage = () => {
                               <div className={`flex items-center gap-1 mt-1 ${isMe ? 'mr-1' : 'ml-3'}`}>
                                 <span className="text-[11px] text-gray-400">{formatMessageTime(msg.created_at)}</span>
                                 {msg.is_edited && (
-                                  <span className="text-[11px] text-gray-400 italic">· edited</span>
+                                  <span className="text-[11px] text-gray-400 italic">{t('groups.edited')}</span>
                                 )}
                                 {isMe && (() => {
                                   const readByOthers = (msg.read_by || []).filter(
@@ -2273,7 +2266,7 @@ export const GroupPage = () => {
                                   ) : (
                                     <Check
                                       className="w-3.5 h-3.5 text-gray-400"
-                                      title="Sent"
+                                      title={t('groups.sent')}
                                     />
                                   );
                                 })()}
@@ -2303,7 +2296,7 @@ export const GroupPage = () => {
                           <button
                             onClick={() => removePendingFile(idx)}
                             className="text-gray-400 hover:text-red-500"
-                            title="Remove"
+                            title={t('groups.remove')}
                           >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -2325,7 +2318,7 @@ export const GroupPage = () => {
                     <button
                       onClick={handlePickFiles}
                       className="p-2.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
-                      title="Attach file"
+                      title={t('groups.attachFile')}
                       disabled={pendingFiles.length >= 5}
                     >
                       <Paperclip className="w-5 h-5" />
@@ -2339,7 +2332,7 @@ export const GroupPage = () => {
                             ? 'text-blue-600 bg-blue-50'
                             : 'text-gray-500 hover:bg-gray-100'
                         }`}
-                        title="Emoji"
+                        title={t('groups.emoji')}
                       >
                         <Smile className="w-5 h-5" />
                       </button>
@@ -2376,7 +2369,7 @@ export const GroupPage = () => {
                       onClick={handleSendChatMessage}
                       disabled={(!chatMessageInput.trim() && pendingFiles.length === 0) || sendingMessage}
                       className="p-2.5 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shadow-blue-500/30"
-                      title="Send"
+                      title={t('groups.send')}
                     >
                       {sendingMessage ? (
                         <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -2408,8 +2401,8 @@ export const GroupPage = () => {
                   </svg>
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-900">Community Chat</h3>
-                  <p className="text-xs text-gray-500">Connect with everyone</p>
+                  <h3 className="font-bold text-gray-900">{t('groups.communityChat')}</h3>
+                  <p className="text-xs text-gray-500">{t('groups.communityChatSubtitle')}</p>
                 </div>
               </div>
             </div>
@@ -2425,8 +2418,8 @@ export const GroupPage = () => {
                   <svg className="w-16 h-16 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                   </svg>
-                  <h4 className="text-lg font-semibold text-gray-700 mb-2">Welcome to Community Chat</h4>
-                  <p className="text-sm max-w-sm">Connect with everyone across all organizations. Start typing to send a message.</p>
+                  <h4 className="text-lg font-semibold text-gray-700 mb-2">{t('groups.communityChatWelcome')}</h4>
+                  <p className="text-sm max-w-sm">{t('groups.communityChatWelcomeDesc')}</p>
                 </div>
               ) : (
                 <>
@@ -2458,7 +2451,7 @@ export const GroupPage = () => {
                               <span className="text-xs font-semibold text-gray-700">{getSenderName(msg.sender)}</span>
                               <span className="text-[11px] text-gray-400">{formatMessageTime(msg.created_at)}</span>
                               {msg.is_edited && !isDeleted && (
-                                <span className="text-[10px] text-gray-400 italic">· edited</span>
+                                <span className="text-[10px] text-gray-400 italic">{t('groups.edited')}</span>
                               )}
                             </div>
 
@@ -2476,9 +2469,7 @@ export const GroupPage = () => {
                                     onClick={handleCancelEditGlobalMessage}
                                     className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
                                     disabled={globalEditingSaving}
-                                  >
-                                    Cancel
-                                  </button>
+                                  >{t('groups.cancel')}</button>
                                   <button
                                     onClick={handleSaveEditGlobalMessage}
                                     className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
@@ -2491,7 +2482,7 @@ export const GroupPage = () => {
                             ) : (
                               <div className={`relative px-4 py-2.5 rounded-2xl text-sm ${isMe ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-gray-100 text-gray-800 rounded-tl-sm'}`}>
                                 {isDeleted ? (
-                                  <span className="italic opacity-60">This message was deleted</span>
+                                  <span className="italic opacity-60">{t('groups.messageDeleted')}</span>
                                 ) : (
                                   <div className="whitespace-pre-wrap">{msg.content}</div>
                                 )}
@@ -2570,7 +2561,7 @@ export const GroupPage = () => {
                       <button
                         onClick={() => removeGlobalPendingFile(idx)}
                         className="text-gray-400 hover:text-red-500"
-                        title="Remove"
+                        title={t('groups.remove')}
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -2592,7 +2583,7 @@ export const GroupPage = () => {
                 <button
                   onClick={handlePickGlobalFiles}
                   className="p-2.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
-                  title="Attach file"
+                  title={t('groups.attachFile')}
                   disabled={globalPendingFiles.length >= 5}
                 >
                   <Paperclip className="w-5 h-5" />
@@ -2606,7 +2597,7 @@ export const GroupPage = () => {
                         ? 'text-blue-600 bg-blue-50'
                         : 'text-gray-500 hover:bg-gray-100'
                     }`}
-                    title="Emoji"
+                    title={t('groups.emoji')}
                   >
                     <Smile className="w-5 h-5" />
                   </button>
@@ -2635,14 +2626,14 @@ export const GroupPage = () => {
                       handleSendGlobalMessage();
                     }
                   }}
-                  placeholder="Message everyone..."
+                  placeholder={t('groups.messageEveryonePlaceholder')}
                   className="flex-1 resize-none px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all max-h-32"
                 />
                 <button
                   onClick={handleSendGlobalMessage}
                   disabled={(!globalMessageInput.trim() && globalPendingFiles.length === 0) || globalSendingMessage}
                   className="p-2.5 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shadow-blue-500/30"
-                  title="Send"
+                  title={t('groups.send')}
                 >
                   {globalSendingMessage ? (
                     <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -2681,11 +2672,11 @@ export const GroupPage = () => {
                   <div className="absolute bottom-3 left-3 flex items-center gap-2">
                     <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white/95 backdrop-blur-sm rounded-full text-xs font-semibold text-gray-700">
                       <Users className="w-3.5 h-3.5 text-blue-500" />
-                      <span>{group.members} members</span>
+                      <span>{t('groups.members', { count: group.members })}</span>
                     </div>
                     <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white/95 backdrop-blur-sm rounded-full text-xs font-semibold text-gray-700">
                       <Calendar className="w-3.5 h-3.5 text-cyan-500" />
-                      <span>{group.events} events</span>
+                      <span>{t('groups.events', { count: group.events })}</span>
                     </div>
                   </div>
                 </div>
@@ -2704,7 +2695,7 @@ export const GroupPage = () => {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                         </svg>
-                        <span>Edit Group</span>
+                        <span>{t('groups.editGroup')}</span>
                       </button>
                     )}
                     <button
@@ -2712,7 +2703,7 @@ export const GroupPage = () => {
                       className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition-all font-semibold text-sm"
                     >
                       <Eye className="w-4 h-4" />
-                      <span>View Group</span>
+                      <span>{t('groups.viewGroup')}</span>
                     </button>
                   </div>
                 </div>
@@ -2738,7 +2729,7 @@ export const GroupPage = () => {
           {/* Invite User Tab Content */}
           {activeTab === 'invite' && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 h-full flex flex-col">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Group Invitations</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('groups.groupInvitations')}</h3>
               
               <div className="flex-1 overflow-y-auto">
               
@@ -2751,7 +2742,7 @@ export const GroupPage = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                       </svg>
                     </div>
-                    <span>Choose Group for Invitation</span>
+                    <span>{t('groups.chooseGroupForInvitation')}</span>
                   </div>
                 </label>
                 
@@ -2767,16 +2758,16 @@ export const GroupPage = () => {
                         <>
                           <img
                             src={myGroups.find(g => g.id === selectedGroupForInvite)?.image || DEFAULT_GROUP_IMAGE}
-                            alt={myGroups.find(g => g.id === selectedGroupForInvite)?.name || 'Selected group'}
+                            alt={myGroups.find(g => g.id === selectedGroupForInvite)?.name || t('groups.selectedGroup')}
                             className="w-10 h-10 rounded-lg object-cover"
                             onError={(e) => { e.target.src = DEFAULT_GROUP_IMAGE; }}
                           />
                           <div className="flex-1">
                             <div className="font-medium text-gray-900">
-                              {myGroups.find(g => g.id === selectedGroupForInvite)?.name || 'Selected group'}
+                              {myGroups.find(g => g.id === selectedGroupForInvite)?.name || t('groups.selectedGroup')}
                             </div>
                             <div className="text-sm text-gray-500">
-                              {myGroups.find(g => g.id === selectedGroupForInvite)?.members || 0} members
+                              {t('groups.members', { count: myGroups.find(g => g.id === selectedGroupForInvite)?.members || 0 })}
                             </div>
                           </div>
                         </>
@@ -2787,7 +2778,7 @@ export const GroupPage = () => {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                             </svg>
                           </div>
-                          <div className="text-gray-500">Select a group to invite users...</div>
+                          <div className="text-gray-500">{t('groups.selectGroupInvitePlaceholder')}</div>
                         </>
                       )}
                     </div>
@@ -2811,8 +2802,8 @@ export const GroupPage = () => {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                             </svg>
                           </div>
-                          <p className="text-sm font-medium text-gray-700 mb-1">No groups available</p>
-                          <p className="text-xs text-gray-500">Create a group first to start inviting users</p>
+                          <p className="text-sm font-medium text-gray-700 mb-1">{t('groups.noGroupsAvailable')}</p>
+                          <p className="text-xs text-gray-500">{t('groups.createGroupFirst')}</p>
                         </div>
                       ) : (
                         myGroups.map((group) => (
@@ -2839,7 +2830,7 @@ export const GroupPage = () => {
                                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                                   </svg>
-                                  {group.members || 0} members
+                                  {t('groups.members', { count: group.members || 0 })}
                                 </div>
                               </div>
                               {selectedGroupForInvite === group.id && (
@@ -2868,7 +2859,7 @@ export const GroupPage = () => {
                       </div>
                       <div className="flex-1">
                         <p className="text-sm font-medium text-blue-800">
-                          Ready to invite users to <strong>{myGroups.find(g => g.id === selectedGroupForInvite)?.name || 'Selected group'}</strong>
+                          Ready to invite users to <strong>{myGroups.find(g => g.id === selectedGroupForInvite)?.name || t('groups.selectedGroup')}</strong>
                         </p>
                       </div>
                     </div>
@@ -2905,9 +2896,7 @@ export const GroupPage = () => {
                       ? 'text-blue-600 border-b-2 border-blue-600'
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
-                >
-                  Invite Link
-                </button>
+                >{t('groups.inviteLink')}</button>
               </div>
 
               {/* User Invitation Sub-tab */}
@@ -2922,7 +2911,7 @@ export const GroupPage = () => {
                       </div>
                       <input
                         type="text"
-                        placeholder="Search by username"
+                        placeholder={t('groups.searchByUsername')}
                         value={userSearchTerm}
                         onChange={(e) => handleUserSearch(e.target.value)}
                         className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -2941,9 +2930,9 @@ export const GroupPage = () => {
                   {/* Found Users */}
                   <div className="space-y-4">
                     {foundUsers.length === 0 && userSearchTerm.trim() && !userSearchLoading ? (
-                      <p className="text-gray-500 text-center py-4">No users found</p>
+                      <p className="text-gray-500 text-center py-4">{t('groups.noUsersFound')}</p>
                     ) : foundUsers.length === 0 && !userSearchTerm.trim() ? (
-                      <p className="text-gray-500 text-center py-4">Start typing to search for users</p>
+                      <p className="text-gray-500 text-center py-4">{t('groups.startTypingSearchUsers')}</p>
                     ) : foundUsers.length > 0 ? (
                       foundUsers.map((u) => (
                         <div key={u.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
@@ -2962,9 +2951,7 @@ export const GroupPage = () => {
                             onClick={() => handleInviteUser(u.id)}
                             disabled={!selectedGroupForInvite}
                             className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Invite
-                          </button>
+                          >{t('groups.invite')}</button>
                         </div>
                       ))
                     ) : null}
@@ -2984,7 +2971,7 @@ export const GroupPage = () => {
                       </div>
                       <input
                         type="text"
-                        placeholder="Search by email"
+                        placeholder={t('groups.searchByEmail')}
                         value={emailSearchTerm}
                         onChange={(e) => setEmailSearchTerm(e.target.value)}
                         className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -3003,9 +2990,9 @@ export const GroupPage = () => {
                   {/* Found Users by Email */}
                   <div className="space-y-4">
                     {foundUsersByEmail.length === 0 && emailSearchTerm.trim() && !emailSearchLoading ? (
-                      <p className="text-gray-500 text-center py-4">No users found</p>
+                      <p className="text-gray-500 text-center py-4">{t('groups.noUsersFound')}</p>
                     ) : foundUsersByEmail.length === 0 && !emailSearchTerm.trim() ? (
-                      <p className="text-gray-500 text-center py-4">Start typing to search by email</p>
+                      <p className="text-gray-500 text-center py-4">{t('groups.startTypingSearchEmail')}</p>
                     ) : foundUsersByEmail.length > 0 ? (
                       foundUsersByEmail.map((u) => (
                         <div key={u.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
@@ -3024,9 +3011,7 @@ export const GroupPage = () => {
                             onClick={() => handleInviteUser(u.id)}
                             disabled={!selectedGroupForInvite}
                             className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Invite
-                          </button>
+                          >{t('groups.invite')}</button>
                         </div>
                       ))
                     ) : null}
@@ -3039,14 +3024,12 @@ export const GroupPage = () => {
                 <div>
                   {/* Invite Settings */}
                   <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                    <h4 className="text-sm font-semibold text-gray-800 mb-4">Invite Link Settings</h4>
+                    <h4 className="text-sm font-semibold text-gray-800 mb-4">{t('groups.inviteLinkSettings')}</h4>
                     
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                       {/* Max Uses */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Max Users Can Join
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">{t('groups.maxUsersCanJoin')}</label>
                         <input
                           type="number"
                           min="1"
@@ -3056,14 +3039,12 @@ export const GroupPage = () => {
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           placeholder="10"
                         />
-                        <p className="text-xs text-gray-500 mt-1">Leave empty for unlimited</p>
+                        <p className="text-xs text-gray-500 mt-1">{t('groups.leaveEmptyForUnlimited')}</p>
                       </div>
 
                       {/* Expires In */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Expires In (Days)
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">{t('groups.expiresInDays')}</label>
                         <input
                           type="number"
                           min="1"
@@ -3073,23 +3054,21 @@ export const GroupPage = () => {
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           placeholder="30"
                         />
-                        <p className="text-xs text-gray-500 mt-1">Days until link expires</p>
+                        <p className="text-xs text-gray-500 mt-1">{t('groups.daysUntilLinkExpires')}</p>
                       </div>
 
                       {/* Custom Message */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Custom Message
-                        </label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">{t('groups.customMessage')}</label>
                         <input
                           type="text"
                           value={inviteMessage}
                           onChange={(e) => setInviteMessage(e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="Join our awesome group!"
+                          placeholder={t('groups.joinAwesomeGroupPlaceholder')}
                           maxLength="200"
                         />
-                        <p className="text-xs text-gray-500 mt-1">Personal message for invitees</p>
+                        <p className="text-xs text-gray-500 mt-1">{t('groups.personalMessageForInvitees')}</p>
                       </div>
                     </div>
 
@@ -3104,7 +3083,7 @@ export const GroupPage = () => {
                     
                   {inviteLink && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Invite Link</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">{t('groups.inviteLink')}</label>
                       <div className="flex gap-2">
                         <input
                           type="text"
@@ -3115,7 +3094,7 @@ export const GroupPage = () => {
                         <button
                           onClick={handleCopyInviteLink}
                           className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                          title="Copy link"
+                          title={t('groups.copyLink')}
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -3130,7 +3109,7 @@ export const GroupPage = () => {
                     <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
                       <div className="flex items-center justify-center py-4">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
-                        <span className="text-sm text-gray-600">Loading invite information...</span>
+                        <span className="text-sm text-gray-600">{t('groups.loadingInviteInformation')}</span>
                       </div>
                     </div>
                   ) : inviteInfo ? (
@@ -3157,10 +3136,10 @@ export const GroupPage = () => {
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                               </svg>
-                              <span>Usage</span>
+                              <span>{t('groups.usage')}</span>
                             </div>
                             <p className="font-semibold text-gray-900">
-                              {inviteInfo.number_of_uses} / {inviteInfo.max_uses === 0 ? 'Unlimited' : inviteInfo.max_uses}
+                              {inviteInfo.number_of_uses} / {inviteInfo.max_uses === 0 ? t('groups.unlimited') : inviteInfo.max_uses}
                             </p>
                           </div>
                           
@@ -3169,12 +3148,12 @@ export const GroupPage = () => {
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                               </svg>
-                              <span>Expires</span>
+                              <span>{t('groups.expires')}</span>
                             </div>
                             <p className="font-semibold text-gray-900">
                               {inviteInfo.expired_date 
-                                ? new Date(inviteInfo.expired_date).toLocaleDateString()
-                                : 'Never'
+                                ? new Date(inviteInfo.expired_date).toLocaleDateString(locale)
+                                : t('groups.never')
                               }
                             </p>
                           </div>
@@ -3184,7 +3163,7 @@ export const GroupPage = () => {
                         {inviteInfo.max_uses > 0 && (
                           <div className="bg-white rounded-lg p-3 border border-blue-100">
                             <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
-                              <span>Link Usage Progress</span>
+                              <span>{t('groups.linkUsageProgress')}</span>
                               <span>{Math.round((inviteInfo.number_of_uses / inviteInfo.max_uses) * 100)}%</span>
                             </div>
                             <div className="w-full bg-gray-200 rounded-full h-2">
@@ -3198,7 +3177,7 @@ export const GroupPage = () => {
                         
                         {/* Status Badge */}
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-gray-500">Link Status</span>
+                          <span className="text-xs text-gray-500">{t('groups.linkStatus')}</span>
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                             inviteInfo.number_of_uses >= inviteInfo.max_uses && inviteInfo.max_uses > 0
                               ? 'bg-red-100 text-red-800 border border-red-200'
@@ -3207,10 +3186,10 @@ export const GroupPage = () => {
                               : 'bg-green-100 text-green-800 border border-green-200'
                           }`}>
                             {inviteInfo.number_of_uses >= inviteInfo.max_uses && inviteInfo.max_uses > 0
-                              ? 'Fully Used'
+                              ? t('groups.fullyUsed')
                               : new Date(inviteInfo.expired_date) < new Date() && inviteInfo.expired_date
-                              ? 'Expired'
-                              : 'Active'
+                              ? t('groups.expired')
+                              : t('groups.active')
                             }
                           </span>
                         </div>
@@ -3222,7 +3201,7 @@ export const GroupPage = () => {
                     <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
                       <div className="flex items-center justify-center py-4">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
-                        <span className="text-sm text-gray-600">Checking for existing invite links...</span>
+                        <span className="text-sm text-gray-600">{t('groups.checkingExistingInviteLinks')}</span>
                       </div>
                     </div>
                   ) : !inviteLink && selectedGroupForInvite ? (
@@ -3250,11 +3229,11 @@ export const GroupPage = () => {
                 <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
-                <h3 className="text-lg font-semibold text-gray-900">Received Invitations</h3>
+                <h3 className="text-lg font-semibold text-gray-900">{t('groups.receivedInvitations')}</h3>
               </div>
               {pendingInvitations.length > 0 && (
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                  {pendingInvitations.length} new
+                  {t('groups.newBadge', { count: pendingInvitations.length })}
                 </span>
               )}
             </div>
@@ -3266,8 +3245,8 @@ export const GroupPage = () => {
                   <svg className="w-12 h-12 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                   </svg>
-                  <p className="text-sm font-medium text-gray-700 mb-1">No invitations yet</p>
-                  <p className="text-xs text-gray-500">Group invitations will appear here</p>
+                  <p className="text-sm font-medium text-gray-700 mb-1">{t('groups.noInvitationsYet')}</p>
+                  <p className="text-xs text-gray-500">{t('groups.invitationsWillAppear')}</p>
                 </div>
               ) : (
                 pendingInvitations.map((invitation) => (
@@ -3288,7 +3267,7 @@ export const GroupPage = () => {
                         </span>
                       </div>
                       <div className="text-xs text-gray-500 whitespace-nowrap ml-2">
-                        {new Date(invitation.created_at).toLocaleDateString('en-US', { 
+                        {new Date(invitation.created_at).toLocaleDateString(locale, { 
                           month: 'short', 
                           day: 'numeric',
                           hour: '2-digit',
@@ -3329,7 +3308,7 @@ export const GroupPage = () => {
                       <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                       </svg>
-                      <span className="text-xs text-gray-600">Role: <span className="font-medium text-gray-800 capitalize">{invitation.role}</span></span>
+                      <span className="text-xs text-gray-600">{t('groups.roleLabel')}<span className="font-medium text-gray-800 capitalize">{t('groups.' + (invitation.role?.toLowerCase() || 'member'))}</span></span>
                     </div>
 
                     {/* Action Buttons */}
@@ -3340,18 +3319,14 @@ export const GroupPage = () => {
                       >
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        Accept
-                      </button>
+                        </svg>{t('groups.accept')}</button>
                       <button
                         onClick={() => handleRejectInvitation(invitation.id)}
                         className="flex-1 px-3 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white text-xs font-medium rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 flex items-center justify-center gap-1 shadow-sm"
                       >
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                        Reject
-                      </button>
+                        </svg>{t('groups.reject')}</button>
                     </div>
                   </div>
                 ))
@@ -3362,7 +3337,7 @@ export const GroupPage = () => {
             {pendingInvitations.length > 0 && (
               <div className="mt-4 pt-4 border-t border-gray-200">
                 <p className="text-xs text-gray-500 text-center">
-                  {pendingInvitations.length} invitation{pendingInvitations.length > 1 ? 's' : ''} pending
+                  {t('groups.invitationsPending', { count: pendingInvitations.length })}
                 </p>
               </div>
             )}
@@ -3375,7 +3350,7 @@ export const GroupPage = () => {
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900">Create New Group</h2>
+              <h2 className="text-xl font-bold text-gray-900">{t('groups.createNewGroup')}</h2>
               <button
                 onClick={() => {
                   setShowCreateModal(false);
@@ -3392,13 +3367,13 @@ export const GroupPage = () => {
             <div className="space-y-4">
               {/* Group Image Upload */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Group Image</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('groups.groupImage')}</label>
                 <div className="flex items-center space-x-4">
                   {groupImagePreview ? (
                     <div className="relative">
                       <img
                         src={groupImagePreview}
-                        alt="Group preview"
+                        alt={t('groups.groupPreview')}
                         className="w-20 h-20 rounded-lg object-cover border-2 border-gray-200"
                       />
                       <button
@@ -3444,31 +3419,31 @@ export const GroupPage = () => {
                       onChange={handleImageChange}
                       className="hidden"
                     />
-                    <p className="text-xs text-gray-500 mt-1">JPG, PNG, GIF up to 5MB</p>
+                    <p className="text-xs text-gray-500 mt-1">{t('groups.imageFormats')}</p>
                     {!groupImagePreview && (
-                      <p className="text-xs text-blue-500 mt-1">or drag and drop an image here</p>
+                      <p className="text-xs text-blue-500 mt-1">{t('groups.dragDropImage')}</p>
                     )}
                   </div>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Group Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('groups.groupName')}</label>
                 <input
                   type="text"
                   value={groupName}
                   onChange={(e) => setGroupName(e.target.value)}
-                  placeholder="Enter group name"
+                  placeholder={t('groups.enterGroupName')}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('groups.description')}</label>
                 <textarea
                   value={groupDescription}
                   onChange={(e) => setGroupDescription(e.target.value)}
-                  placeholder="Enter group description"
+                  placeholder={t('groups.enterGroupDescription')}
                   rows={4}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
                 />
@@ -3482,9 +3457,7 @@ export const GroupPage = () => {
                   resetCreateGroupForm();
                 }}
                 className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
+              >{t('groups.cancel')}</button>
               <button
                 onClick={handleCreateGroup}
                 disabled={!groupName.trim() || !groupDescription.trim() || createLoading}
@@ -3492,7 +3465,7 @@ export const GroupPage = () => {
               >
                 {uploadStep === 'uploading' ? 'Uploading Image...' : 
                  uploadStep === 'creating' ? 'Creating Group...' : 
-                 createLoading ? 'Creating...' : 'Create Group'}
+                 createLoading ? 'Creating...' : t('groups.createGroup')}
               </button>
             </div>
           </div>
@@ -3504,7 +3477,7 @@ export const GroupPage = () => {
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900">Update Group</h2>
+              <h2 className="text-xl font-bold text-gray-900">{t('groups.updateGroup')}</h2>
               <button
                 onClick={() => {
                   setShowUpdateModal(false);
@@ -3521,13 +3494,13 @@ export const GroupPage = () => {
             <div className="space-y-4">
               {/* Group Image Upload */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Group Image</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('groups.groupImage')}</label>
                 <div className="flex items-center space-x-4">
                   {updateGroupImagePreview ? (
                     <div className="relative">
                       <img
                         src={updateGroupImagePreview}
-                        alt="Group preview"
+                        alt={t('groups.groupPreview')}
                         className="w-20 h-20 rounded-lg object-cover border-2 border-gray-200"
                       />
                       <button
@@ -3573,31 +3546,31 @@ export const GroupPage = () => {
                       onChange={handleUpdateImageChange}
                       className="hidden"
                     />
-                    <p className="text-xs text-gray-500 mt-1">JPG, PNG, GIF up to 5MB</p>
+                    <p className="text-xs text-gray-500 mt-1">{t('groups.imageFormats')}</p>
                     {!updateGroupImagePreview && (
-                      <p className="text-xs text-blue-500 mt-1">or drag and drop an image here</p>
+                      <p className="text-xs text-blue-500 mt-1">{t('groups.dragDropImage')}</p>
                     )}
                   </div>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Group Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('groups.groupName')}</label>
                 <input
                   type="text"
                   value={updateGroupName}
                   onChange={(e) => setUpdateGroupName(e.target.value)}
-                  placeholder="Enter group name"
+                  placeholder={t('groups.enterGroupName')}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('groups.description')}</label>
                 <textarea
                   value={updateGroupDescription}
                   onChange={(e) => setUpdateGroupDescription(e.target.value)}
-                  placeholder="Enter group description"
+                  placeholder={t('groups.enterGroupDescription')}
                   rows={4}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
                 />
@@ -3611,9 +3584,7 @@ export const GroupPage = () => {
                   resetUpdateGroupForm();
                 }}
                 className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
+              >{t('groups.cancel')}</button>
               <button
                 onClick={handleUpdateGroup}
                 disabled={!updateGroupName.trim() || !updateGroupDescription.trim() || updateLoading}
@@ -3621,7 +3592,7 @@ export const GroupPage = () => {
               >
                 {uploadStep === 'uploading' ? 'Uploading Image...' : 
                  uploadStep === 'creating' ? 'Updating Group...' : 
-                 updateLoading ? 'Updating...' : 'Update Group'}
+                 updateLoading ? 'Updating...' : t('groups.updateGroup')}
               </button>
             </div>
           </div>
@@ -3633,7 +3604,7 @@ export const GroupPage = () => {
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900">Create New Event</h2>
+              <h2 className="text-xl font-bold text-gray-900">{t('groups.createNewEvent')}</h2>
               <button
                 onClick={() => setShowCreateEventModal(false)}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -3660,10 +3631,10 @@ export const GroupPage = () => {
                 onChange={(e) => setSelectedGroupIdForEvent(e.target.value)}
                 className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
-                <option value="">Choose a group...</option>
+                <option value="">{t('groups.chooseGroupPlaceholder')}</option>
                 {myGroups.map((group) => (
                   <option key={group.id} value={group.id}>
-                    {group.name} ({group.events} events)
+                    {group.name} ({t('groups.events', { count: group.events })})
                   </option>
                 ))}
               </select>
@@ -3672,53 +3643,53 @@ export const GroupPage = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Event Title */}
               <div>
-                <label htmlFor="event-title" className="block text-sm font-medium text-gray-700 mb-2">Event Title *</label>
+                <label htmlFor="event-title" className="block text-sm font-medium text-gray-700 mb-2">{t('groups.eventTitle')}</label>
                 <input
                   type="text"
                   id="event-title"
                   value={eventTitle}
                   onChange={(e) => setEventTitle(e.target.value)}
                   className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter event title"
+                  placeholder={t('groups.enterEventTitle')}
                 />
               </div>
 
               {/* Category */}
               <div>
-                <label htmlFor="event-category" className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                <label htmlFor="event-category" className="block text-sm font-medium text-gray-700 mb-2">{t('groups.category')}</label>
                 <select
                   id="event-category"
                   value={eventCategory}
                   onChange={(e) => setEventCategory(e.target.value)}
                   className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <option value="">Select category...</option>
-                  <option value="Education">Education</option>
-                  <option value="Business">Business</option>
-                  <option value="Technology">Technology</option>
-                  <option value="Social">Social</option>
-                  <option value="Sports">Sports</option>
-                  <option value="Entertainment">Entertainment</option>
-                  <option value="Other">Other</option>
+                  <option value="">{t('groups.selectCategoryPlaceholder')}</option>
+                  <option value="Education">{t('events.allEvents.categories.education')}</option>
+                  <option value="Business">{t('events.allEvents.categories.business')}</option>
+                  <option value="Technology">{t('events.allEvents.categories.technology')}</option>
+                  <option value="Social">{t('events.allEvents.categories.social')}</option>
+                  <option value="Sports">{t('events.allEvents.categories.sports')}</option>
+                  <option value="Entertainment">{t('events.allEvents.categories.entertainment')}</option>
+                  <option value="Other">{t('events.allEvents.categories.other')}</option>
                 </select>
               </div>
 
               {/* Short Description */}
               <div className="md:col-span-2">
-                <label htmlFor="event-short-desc" className="block text-sm font-medium text-gray-700 mb-2">Short Description *</label>
+                <label htmlFor="event-short-desc" className="block text-sm font-medium text-gray-700 mb-2">{t('groups.shortDescription')}</label>
                 <textarea
                   id="event-short-desc"
                   value={eventShortDescription}
                   onChange={(e) => setEventShortDescription(e.target.value)}
                   rows={2}
                   className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Brief description of your event"
+                  placeholder={t('groups.briefDescription')}
                 />
               </div>
 
               {/* Start Time */}
               <div>
-                <label htmlFor="event-start-time" className="block text-sm font-medium text-gray-700 mb-2">Start Time</label>
+                <label htmlFor="event-start-time" className="block text-sm font-medium text-gray-700 mb-2">{t('groups.startTime')}</label>
                 <input
                   type="datetime-local"
                   id="event-start-time"
@@ -3730,7 +3701,7 @@ export const GroupPage = () => {
 
               {/* End Time */}
               <div>
-                <label htmlFor="event-end-time" className="block text-sm font-medium text-gray-700 mb-2">End Time</label>
+                <label htmlFor="event-end-time" className="block text-sm font-medium text-gray-700 mb-2">{t('groups.endTime')}</label>
                 <input
                   type="datetime-local"
                   id="event-end-time"
@@ -3742,54 +3713,54 @@ export const GroupPage = () => {
 
               {/* Location */}
               <div>
-                <label htmlFor="event-location" className="block text-sm font-medium text-gray-700 mb-2">Location</label>
+                <label htmlFor="event-location" className="block text-sm font-medium text-gray-700 mb-2">{t('groups.location')}</label>
                 <input
                   type="text"
                   id="event-location"
                   value={eventLocation}
                   onChange={(e) => setEventLocation(e.target.value)}
                   className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Event location"
+                  placeholder={t('groups.eventLocation')}
                 />
               </div>
 
               {/* Full Address */}
               <div>
-                <label htmlFor="event-full-address" className="block text-sm font-medium text-gray-700 mb-2">Full Address</label>
+                <label htmlFor="event-full-address" className="block text-sm font-medium text-gray-700 mb-2">{t('groups.fullAddress')}</label>
                 <input
                   type="text"
                   id="event-full-address"
                   value={eventFullAddress}
                   onChange={(e) => setEventFullAddress(e.target.value)}
                   className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Complete event address"
+                  placeholder={t('groups.completeEventAddress')}
                 />
               </div>
 
               {/* Capacity */}
               <div>
-                <label htmlFor="event-capacity" className="block text-sm font-medium text-gray-700 mb-2">Capacity</label>
+                <label htmlFor="event-capacity" className="block text-sm font-medium text-gray-700 mb-2">{t('groups.capacity')}</label>
                 <input
                   type="number"
                   id="event-capacity"
                   value={eventCapacity}
                   onChange={(e) => setEventCapacity(e.target.value)}
                   className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Maximum number of attendees"
+                  placeholder={t('groups.maxAttendees')}
                   min="1"
                 />
               </div>
 
               {/* Long Description */}
               <div className="md:col-span-2">
-                <label htmlFor="event-long-desc" className="block text-sm font-medium text-gray-700 mb-2">Long Description</label>
+                <label htmlFor="event-long-desc" className="block text-sm font-medium text-gray-700 mb-2">{t('groups.longDescription')}</label>
                 <textarea
                   id="event-long-desc"
                   value={eventLongDescription}
                   onChange={(e) => setEventLongDescription(e.target.value)}
                   rows={4}
                   className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Detailed description of your event"
+                  placeholder={t('groups.detailedDescription')}
                 />
               </div>
             </div>
@@ -3798,9 +3769,7 @@ export const GroupPage = () => {
               <button
                 onClick={() => setShowCreateEventModal(false)}
                 className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
+              >{t('groups.cancel')}</button>
               <button
                 onClick={handleCreateEvent}
                 disabled={!selectedGroupIdForEvent || !eventTitle.trim() || !eventShortDescription.trim() || createEventLoading}

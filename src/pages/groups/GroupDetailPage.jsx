@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { groupService, eventService } from '@/services';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 
 
 const resolveImageUrl = (url) => {
@@ -51,6 +52,7 @@ export const GroupDetailPage = () => {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { t, locale } = useLanguage();
 
 
   useEffect(() => {
@@ -85,8 +87,8 @@ export const GroupDetailPage = () => {
       
       const normalizedGroup = {
         id: groupData.id || id,
-        name: groupData.name || 'Unknown Group',
-        description: groupData.description || 'No description available',
+        name: groupData.name || t('groups.unknownGroup'),
+        description: groupData.description || t('groups.noDescription'),
         members: groupData.member_count || 0,
         events: groupData.event_count || 0,
         image: imageUrl,
@@ -127,13 +129,13 @@ export const GroupDetailPage = () => {
         
         return {
           id: event.id,
-          title: event.title || 'Untitled Event',
-          date: new Date(event.start_time).toLocaleDateString(),
-          time: new Date(event.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          location: event.location || 'Location TBD',
+          title: event.title || t('groups.untitledEvent'),
+          date: new Date(event.start_time).toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' }),
+          time: new Date(event.start_time).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }),
+          location: event.location || t('groups.locationTbd'),
           maxAttendees: event.capacity || 0,
           registered: event.number_of_registered || event.registered || event.attendees_count || 0, // Handle various possible field names
-          category: event.category || 'General',
+          category: event.category || 'general',
           image: imageUrl,
           shortDescription: event.short_description || '',
           longDescription: event.long_description || '',
@@ -166,7 +168,7 @@ export const GroupDetailPage = () => {
           `${member.first_name || ''} ${member.last_name || ''}`.trim() ||
           member.name ||
           member.username ||
-          'Unknown User';
+          t('groups.unknownUser');
         const profileImageRaw =
           member.profile_image ??
           member.profileImage ??
@@ -178,7 +180,7 @@ export const GroupDetailPage = () => {
         return {
           id: member.id,
           name,
-          email: member.email || 'No email',
+          email: member.email || t('groups.noEmail'),
           role: member.role || 'Member',
           profileImage: resolveImageUrl(profileImageRaw),
           joinedDate: member.joined_at || new Date().toISOString(),
@@ -203,7 +205,7 @@ export const GroupDetailPage = () => {
   const formatDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    return date.toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' });
   };
 
   if (loading) {
@@ -217,12 +219,12 @@ export const GroupDetailPage = () => {
   if (!group) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500 text-lg">Group not found</p>
+        <p className="text-gray-500 text-lg">{t('groups.groupNotFound')}</p>
         <button
           onClick={() => navigate('/group')}
           className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
         >
-          Back to Groups
+          {t('groups.backToGroups')}
         </button>
       </div>
     );
@@ -238,7 +240,7 @@ export const GroupDetailPage = () => {
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
         </svg>
-        <span className="font-medium">Back to Groups</span>
+        <span className="font-medium">{t('groups.backToGroups')}</span>
       </button>
 
       {/* Group Header */}
@@ -264,19 +266,19 @@ export const GroupDetailPage = () => {
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                   </svg>
-                  <span className="font-medium text-gray-700">{group.members} Members</span>
+                  <span className="font-medium text-gray-700">{t('groups.members', { count: group.members })}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
-                  <span className="font-medium text-gray-700">{group.events} Events</span>
+                  <span className="font-medium text-gray-700">{t('groups.events', { count: group.events })}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
-                  <span className="font-medium text-gray-700">Created {formatDate(group.createdDate)}</span>
+                  <span className="font-medium text-gray-700">{t('groups.created', { date: formatDate(group.createdDate) })}</span>
                 </div>
               </div>
             </div>
@@ -290,7 +292,7 @@ export const GroupDetailPage = () => {
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              <span>Create Event</span>
+              <span>{t('groups.createEvent')}</span>
             </button>
             )}
           </div>
@@ -309,7 +311,7 @@ export const GroupDetailPage = () => {
                   : 'text-gray-500 border-transparent hover:text-gray-700'
               }`}
             >
-              Events ({events.length})
+              {t('groups.eventsTab', { count: events.length })}
             </button>
             <button
               onClick={() => setActiveTab('members')}
@@ -319,7 +321,7 @@ export const GroupDetailPage = () => {
                   : 'text-gray-500 border-transparent hover:text-gray-700'
               }`}
             >
-              Members ({members.length})
+              {t('groups.membersTab', { count: members.length })}
             </button>
           </div>
         </div>
@@ -333,9 +335,9 @@ export const GroupDetailPage = () => {
                   <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
-                  <p className="text-gray-500 text-lg mb-2">No events yet</p>
+                  <p className="text-gray-500 text-lg mb-2">{t('groups.noEventsYet')}</p>
                   {isOrganizer && (
-                  <p className="text-gray-400 text-sm mb-4">Be the first to create an event for this group!</p>
+                  <p className="text-gray-400 text-sm mb-4">{t('groups.beFirstToCreate')}</p>
                   )}
                 </div>
               ) : (
@@ -359,7 +361,7 @@ export const GroupDetailPage = () => {
                       <div className="p-4">
                         <div className="mb-2">
                           <span className="inline-block px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
-                            {event.category}
+                            {t('events.allEvents.categories.' + (event.category?.toLowerCase() || 'other'))}
                           </span>
                         </div>
                         <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">{event.title}</h3>
@@ -389,8 +391,8 @@ export const GroupDetailPage = () => {
                         {/* Attendance Progress */}
                         <div className="mb-2">
                           <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-                            <span>Attendance</span>
-                            <span>{event.registered} / {event.maxAttendees}</span>
+                            <span>{t('groups.attendance')}</span>
+                            <span>{t('groups.registered', { registered: event.registered, max: event.maxAttendees })}</span>
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-2">
                             <div
@@ -415,7 +417,7 @@ export const GroupDetailPage = () => {
                   <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                   </svg>
-                  <p className="text-gray-500 text-lg">No members yet</p>
+                  <p className="text-gray-500 text-lg">{t('groups.noMembersYet')}</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -435,17 +437,17 @@ export const GroupDetailPage = () => {
                           <h4 className="text-base font-semibold text-gray-900 truncate">{member.name}</h4>
                           {member.role === 'Admin' && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
-                              Admin
+                              {t('groups.admin')}
                             </span>
                           )}
                           {member.role === 'Moderator' && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                              Moderator
+                              {t('groups.moderator')}
                             </span>
                           )}
                         </div>
                         <p className="text-sm text-gray-500 truncate">{member.email}</p>
-                        <p className="text-xs text-gray-400 mt-1">Joined {formatDate(member.joinedDate)}</p>
+                        <p className="text-xs text-gray-400 mt-1">{t('groups.joined', { date: formatDate(member.joinedDate) })}</p>
                       </div>
                     </div>
                   ))}

@@ -53,7 +53,7 @@ export const OrganizationMembersPage = () => {
         assignedDate: member.joined_at ? new Date(member.joined_at).toISOString().split('T')[0] : 'N/A',
         joined_at: member.joined_at,
         role: 'Member',
-        avatar: member.img_url || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop',
+        avatar: member.img_url || null,
         image_url: member.img_url,
         profile_contact: member.profile_contact
       }));
@@ -214,6 +214,29 @@ export const OrganizationMembersPage = () => {
   // Use API search results if searching, otherwise show all members
   const filteredMembers = searchTerm.trim() ? searchedMembers : members;
 
+  const getInitials = (name = '') => {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return '?';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  };
+
+  const Avatar = ({ name, imageUrl, size = 'md' }) => {
+    const initials = getInitials(name);
+    const sizeClasses = size === 'md'
+      ? 'w-16 h-16 text-xl'
+      : 'w-12 h-12 text-sm';
+    return (
+      <div className={`${sizeClasses} rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-blue-100 text-blue-700 font-bold`}>
+        {imageUrl ? (
+          <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+        ) : (
+          <span>{initials}</span>
+        )}
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[60vh]">
@@ -299,7 +322,7 @@ export const OrganizationMembersPage = () => {
             {filteredMembers.map((member) => {
               const memberName = member.name || member.full_name || [member.first_name, member.last_name].filter(Boolean).join(' ') || member.username || '—';
               const memberEmail = member.email || '';
-              const memberAvatar = member.avatar || member.image || member.image_url || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop';
+              const memberImageUrl = member.image_url || member.image || member.avatar || member.img_url;
               const memberRole = member.role || 'Member';
               const memberDate = member.assignedDate || member.assigned_date || member.created_at || 'N/A';
               
@@ -309,13 +332,7 @@ export const OrganizationMembersPage = () => {
                   className="bg-gray-50 rounded-xl p-6 border border-gray-200 hover:shadow-md transition-all duration-200"
                 >
                   <div className="flex items-start gap-4 mb-4">
-                    <div className="w-16 h-16 rounded-full overflow-hidden flex-shrink-0">
-                      <img
-                        src={memberAvatar}
-                        alt={memberName}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
+                    <Avatar name={memberName} imageUrl={memberImageUrl} size="md" />
                     <div className="flex-1 min-w-0">
                       <h3 className="text-lg font-bold text-gray-900 mb-1">{memberName}</h3>
                       <p className="text-sm text-gray-600 mb-2">{memberEmail}</p>
@@ -442,7 +459,7 @@ export const OrganizationMembersPage = () => {
                           {searchResults.map((user) => {
                             const userName = user.name || user.full_name || [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || '—';
                             const userEmail = user.email || '';
-                            const userAvatar = user.avatar || user.image || user.image_url || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop';
+                            const userImageUrl = user.image_url || user.image || user.avatar || user.img_url;
                             const userUsername = user.username || user.email?.split('@')[0] || '';
                             const isAlreadyMember = members.some(m => m.email === userEmail);
                             
@@ -455,13 +472,7 @@ export const OrganizationMembersPage = () => {
                                     : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
                                 }`}
                               >
-                                <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
-                                  <img
-                                    src={userAvatar}
-                                    alt={userName}
-                                    className="w-full h-full object-cover"
-                                  />
-                                </div>
+                                <Avatar name={userName} imageUrl={userImageUrl} size="sm" />
                                 <div className="flex-1 min-w-0">
                                   <p className="font-semibold text-gray-900">{userName}</p>
                                   <p className="text-sm text-gray-600">{userEmail}</p>
@@ -549,7 +560,7 @@ export const OrganizationMembersPage = () => {
                           {searchResults.map((user) => {
                             const userName = user.name || user.full_name || [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || '—';
                             const userEmail = user.email || '';
-                            const userAvatar = user.avatar || user.image || user.image_url || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop';
+                            const userImageUrl = user.image_url || user.image || user.avatar || user.img_url;
                             const userUsername = user.username || user.email?.split('@')[0] || '';
                             const isAlreadyMember = members.some(m => m.email === userEmail);
                             
@@ -562,13 +573,7 @@ export const OrganizationMembersPage = () => {
                                     : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
                                 }`}
                               >
-                                <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
-                                  <img
-                                    src={userAvatar}
-                                    alt={userName}
-                                    className="w-full h-full object-cover"
-                                  />
-                                </div>
+                                <Avatar name={userName} imageUrl={userImageUrl} size="sm" />
                                 <div className="flex-1 min-w-0">
                                   <p className="font-semibold text-gray-900">{userName}</p>
                                   <p className="text-sm text-gray-600">{userEmail}</p>

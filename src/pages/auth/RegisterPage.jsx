@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import Logo from '@/assets/icons/MPR Smart Event.png';
 import { ChevronDown, Check } from 'lucide-react';
 
@@ -21,6 +23,7 @@ export const RegisterPage = () => {
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [step, setStep] = useState(1);
   const { register } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const genderRef = useRef(null);
   const [genderOpen, setGenderOpen] = useState(false);
@@ -47,7 +50,7 @@ export const RegisterPage = () => {
 
   const handleNext = () => {
     if (!formData.first_name || !formData.last_name || !formData.email || !formData.phone || !formData.password) {
-      setError('Please fill in all required fields.');
+      setError(t('auth.register.requiredFields'));
       return;
     }
     setError('');
@@ -61,13 +64,13 @@ export const RegisterPage = () => {
     // Validate required fields
     if (!formData.first_name || !formData.last_name || !formData.email || !formData.phone || !formData.password) {
       setStep(1);
-      setError('Please fill in all required fields.');
+      setError(t('auth.register.requiredFields'));
       return;
     }
 
     // Validate terms acceptance
     if (!termsAccepted) {
-      setError('You must agree to the Terms of Service and Privacy Policy to register.');
+      setError(t('auth.register.agreeTerms'));
       return;
     }
 
@@ -80,17 +83,18 @@ export const RegisterPage = () => {
         setIsLoading(false);
         setShowVerificationModal(true);
       } else {
-        setError(result.error || 'Registration failed. Please try again.');
+        setError(result.error || t('auth.register.registrationFailed'));
         setIsLoading(false);
       }
     } catch (error) {
-      setError(error.message || 'Registration failed. Please try again.');
+      setError(error.message || t('auth.register.registrationFailed'));
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+    <div className="relative min-h-screen flex bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      <div className="absolute top-4 right-4 z-50"><LanguageSwitcher /></div>
       {/* Left Section - Branding & Illustration */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 items-center justify-center relative overflow-hidden">
         {/* Decorative Elements */}
@@ -105,8 +109,8 @@ export const RegisterPage = () => {
             <div className="w-20 h-20 bg-white rounded-2xl shadow-2xl flex items-center justify-center mx-auto mb-6 transform hover:scale-110 transition-transform duration-300">
               <img src={Logo} alt="MPR Smart Event" className="w-16 h-16 rounded-xl object-contain" />
             </div>
-            <h1 className="text-5xl font-bold text-white mb-4">Join MPR Smart Event</h1>
-            <p className="text-xl text-blue-100 mb-8">Start creating and attending amazing events</p>
+            <h1 className="text-5xl font-bold text-white mb-4">{t('auth.joinBrandTitle')}</h1>
+            <p className="text-xl text-blue-100 mb-8">{t('auth.joinBrandSubtitle')}</p>
           </div>
           
           <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20">
@@ -118,8 +122,8 @@ export const RegisterPage = () => {
                   </svg>
                 </div>
                 <div>
-                  <p className="font-semibold">Free to Join Events</p>
-                  <p className="text-sm text-blue-100">Attend unlimited events worldwide</p>
+                  <p className="font-semibold">{t('auth.features.freeJoinEvents')}</p>
+                  <p className="text-sm text-blue-100">{t('auth.features.freeJoinEventsDesc')}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 text-white">
@@ -129,8 +133,8 @@ export const RegisterPage = () => {
                   </svg>
                 </div>
                 <div>
-                  <p className="font-semibold">QR Ticket System</p>
-                  <p className="text-sm text-blue-100">Instant tickets for easy check-in</p>
+                  <p className="font-semibold">{t('auth.features.qrTicket')}</p>
+                  <p className="text-sm text-blue-100">{t('auth.features.qrTicketDesc')}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 text-white">
@@ -140,8 +144,8 @@ export const RegisterPage = () => {
                   </svg>
                 </div>
                 <div>
-                  <p className="font-semibold">Event Management Tools</p>
-                  <p className="text-sm text-blue-100">Create events, manage groups & staff</p>
+                  <p className="font-semibold">{t('auth.features.eventManagementTools')}</p>
+                  <p className="text-sm text-blue-100">{t('auth.features.eventManagementToolsDesc')}</p>
                 </div>
               </div>
             </div>
@@ -161,8 +165,8 @@ export const RegisterPage = () => {
           {/* Register Card */}
           <div className="bg-white rounded-2xl shadow-2xl p-8 lg:p-10 border border-gray-100">
             <div className="mb-8">
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">Create Account</h2>
-              <p className="text-gray-600">Sign up to start managing your events</p>
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">{t('auth.register.title')}</h2>
+              <p className="text-gray-600">{t('auth.register.subtitle')}</p>
             </div>
 
             {/* Sign In / Sign Up Tabs */}
@@ -171,18 +175,18 @@ export const RegisterPage = () => {
                 to="/login"
                 className="flex-1 text-gray-700 py-2.5 px-4 rounded-lg font-semibold text-center hover:bg-white/50 transition-colors"
               >
-                Sign In
+                {t('auth.signIn')}
               </Link>
               <button className="flex-1 bg-white text-blue-600 py-2.5 px-4 rounded-lg font-semibold shadow-sm">
-                Sign Up
+                {t('auth.signUp')}
               </button>
             </div>
 
             {/* Stepper */}
             <div className="mb-6">
               <div className="flex items-center justify-between text-sm font-medium text-gray-500 mb-2">
-                <span className={step === 1 ? 'text-blue-600' : 'text-gray-400'}>Personal Info</span>
-                <span className={step === 2 ? 'text-blue-600' : 'text-gray-400'}>Account</span>
+                <span className={step === 1 ? 'text-blue-600' : 'text-gray-400'}>{t('auth.register.personalInfo')}</span>
+                <span className={step === 2 ? 'text-blue-600' : 'text-gray-400'}>{t('auth.register.account')}</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div className={`bg-blue-600 h-2 rounded-full transition-all ${step === 1 ? 'w-1/2' : 'w-full'}`}></div>
@@ -204,7 +208,7 @@ export const RegisterPage = () => {
               <div className={`grid grid-cols-2 gap-4 ${step === 1 ? '' : 'hidden'}`}>
                 <div>
                   <label htmlFor="first_name" className="block text-sm font-semibold text-gray-700 mb-2">
-                    First Name <span className="text-red-500 ml-1">*</span>
+                    {t('auth.register.firstName')} <span className="text-red-500 ml-1">*</span>
                   </label>
                   <input
                     id="first_name"
@@ -212,7 +216,7 @@ export const RegisterPage = () => {
                     type="text"
                     value={formData.first_name}
                     onChange={handleChange}
-                    placeholder="John"
+                    placeholder={t('auth.register.placeholderFirstName')}
                     required
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   />
@@ -220,7 +224,7 @@ export const RegisterPage = () => {
 
                 <div>
                   <label htmlFor="last_name" className="block text-sm font-semibold text-gray-700 mb-2">
-                    Last Name <span className="text-red-500 ml-1">*</span>
+                    {t('auth.register.lastName')} <span className="text-red-500 ml-1">*</span>
                   </label>
                   <input
                     id="last_name"
@@ -228,7 +232,7 @@ export const RegisterPage = () => {
                     type="text"
                     value={formData.last_name}
                     onChange={handleChange}
-                    placeholder="Doe"
+                    placeholder={t('auth.register.placeholderLastName')}
                     required
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   />
@@ -237,7 +241,7 @@ export const RegisterPage = () => {
 
               <div className={step === 1 ? '' : 'hidden'}>
                 <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
-                  Email Address <span className="text-red-500 ml-1">*</span>
+                  {t('auth.register.emailLabel')} <span className="text-red-500 ml-1">*</span>
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -251,7 +255,7 @@ export const RegisterPage = () => {
                     type="email"
                     value={formData.email}
                     onChange={handleChange}
-                    placeholder="john.doe@example.com"
+                    placeholder={t('auth.register.placeholderEmail')}
                     required
                     className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   />
@@ -260,7 +264,7 @@ export const RegisterPage = () => {
 
               <div className={step === 1 ? '' : 'hidden'}>
                 <label htmlFor="phone" className="block text-sm font-semibold text-gray-700 mb-2">
-                  Phone Number <span className="text-red-500 ml-1">*</span>
+                  {t('auth.register.phoneLabel')} <span className="text-red-500 ml-1">*</span>
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -274,7 +278,7 @@ export const RegisterPage = () => {
                     type="tel"
                     value={formData.phone}
                     onChange={handleChange}
-                    placeholder="Enter your phone number"
+                    placeholder={t('auth.register.placeholderPhone')}
                     required
                     className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   />
@@ -283,7 +287,7 @@ export const RegisterPage = () => {
 
               <div className={step === 2 ? '' : 'hidden'}>
                 <label htmlFor="gender" className="block text-sm font-semibold text-gray-700 mb-2">
-                  Gender
+                  {t('auth.register.genderLabel')}
                 </label>
                 <div className="relative" ref={genderRef}>
                   <button
@@ -293,7 +297,7 @@ export const RegisterPage = () => {
                     className="w-full px-4 py-3 pr-10 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white text-left relative"
                   >
                     <span className={formData.gender ? 'text-gray-700' : 'text-gray-400'}>
-                      {formData.gender || 'Select Gender'}
+                      {formData.gender ? t('auth.register.gender.' + formData.gender.toLowerCase()) : t('auth.register.selectGender')}
                     </span>
                     <ChevronDown className="w-5 h-5 text-gray-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
                   </button>
@@ -313,7 +317,7 @@ export const RegisterPage = () => {
                               : 'text-gray-700 hover:bg-blue-50'
                           }`}
                         >
-                          {option}
+                          {t('auth.register.gender.' + option.toLowerCase())}
                           {formData.gender === option && <Check className="w-4 h-4" />}
                         </button>
                       ))}
@@ -324,7 +328,7 @@ export const RegisterPage = () => {
 
               <div className={step === 2 ? '' : 'hidden'}>
                 <label htmlFor="organization" className="block text-sm font-semibold text-gray-700 mb-2">
-                  Organization
+                  {t('auth.register.organization')}
                 </label>
                 <input
                   id="organization"
@@ -332,14 +336,14 @@ export const RegisterPage = () => {
                   type="text"
                   value={formData.organization}
                   onChange={handleChange}
-                  placeholder="Enter your organization"
+                  placeholder={t('auth.register.placeholderOrganization')}
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                 />
               </div>
 
               <div className={step === 1 ? '' : 'hidden'}>
                 <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-2">
-                  Password <span className="text-red-500 ml-1">*</span>
+                  {t('auth.register.password')} <span className="text-red-500 ml-1">*</span>
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -353,7 +357,7 @@ export const RegisterPage = () => {
                     type={showPassword ? 'text' : 'password'}
                     value={formData.password}
                     onChange={handleChange}
-                    placeholder="Enter your password"
+                    placeholder={t('auth.register.placeholderPassword')}
                     required
                     className="w-full pl-12 pr-12 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   />
@@ -375,7 +379,7 @@ export const RegisterPage = () => {
                   </button>
                 </div>
                 <p className="mt-2 text-xs text-gray-500">
-                  Must be at least 8 characters with letters and numbers
+                  {t('auth.register.passwordHint')}
                 </p>
               </div>
 
@@ -389,13 +393,13 @@ export const RegisterPage = () => {
                   className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                 />
                 <label htmlFor="terms" className="text-sm text-gray-600">
-                  I agree to the{' '}
+                  {t('auth.register.agreePrefix')}{' '}
                   <Link to="/terms" className="text-blue-600 hover:text-blue-700 font-medium">
-                    Terms of Service
+                    {t('auth.register.termsOfService')}
                   </Link>{' '}
-                  and{' '}
+                  {t('auth.register.and')}{' '}
                   <Link to="/privacy" className="text-blue-600 hover:text-blue-700 font-medium">
-                    Privacy Policy
+                    {t('auth.register.privacyPolicy')}
                   </Link>
                 </label>
               </div>
@@ -406,7 +410,7 @@ export const RegisterPage = () => {
                   onClick={handleNext}
                   className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3.5 px-4 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
                 >
-                  <span>Continue</span>
+                  <span>{t('auth.register.continue')}</span>
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                   </svg>
@@ -421,11 +425,11 @@ export const RegisterPage = () => {
                     {isLoading ? (
                       <>
                         <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                        <span>Creating account...</span>
+                        <span>{t('auth.register.creatingAccount')}</span>
                       </>
                     ) : (
                       <>
-                        <span>Create Account</span>
+                        <span>{t('auth.register.createAccount')}</span>
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                         </svg>
@@ -437,7 +441,7 @@ export const RegisterPage = () => {
                     onClick={() => setStep(1)}
                     className="w-full py-3 px-4 rounded-xl border-2 border-gray-300 font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
                   >
-                    Back
+                    {t('auth.register.back')}
                   </button>
                 </>
               )}
@@ -449,7 +453,7 @@ export const RegisterPage = () => {
                 <div className="w-full border-t border-gray-300"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-white text-gray-500">Or sign up with</span>
+                <span className="px-4 bg-white text-gray-500">{t('auth.register.orSignUpWith')}</span>
               </div>
             </div>
 
@@ -462,21 +466,21 @@ export const RegisterPage = () => {
                   <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                   <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                 </svg>
-                <span className="text-sm">Google</span>
+                <span className="text-sm">{t('auth.google')}</span>
               </button>
               <button className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-50 transition-colors font-medium text-gray-700">
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                 </svg>
-                <span className="text-sm">Facebook</span>
+                <span className="text-sm">{t('auth.facebook')}</span>
               </button>
             </div>
 
             {/* Footer */}
             <p className="mt-8 text-center text-sm text-gray-600">
-              Already have an account?{' '}
+              {t('auth.register.hasAccount')}{' '}
               <Link to="/login" className="text-blue-600 hover:text-blue-700 font-semibold">
-                Sign in to MPR Smart Event
+                {t('auth.register.signInToBrand')}
               </Link>
             </p>
           </div>
@@ -492,10 +496,9 @@ export const RegisterPage = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
               </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">Verify Your Email</h3>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">{t('auth.register.verifyEmail')}</h3>
               <p className="text-gray-600 mb-6">
-                We've sent a verification link to <span className="font-semibold text-gray-900">{formData.email}</span>. 
-                Please check your inbox and click the link to verify your email address before logging in.
+                {t('auth.register.verifyEmailSent', { email: formData.email })}
               </p>
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
                 <div className="flex items-start gap-3">
@@ -503,7 +506,7 @@ export const RegisterPage = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                   </svg>
                   <p className="text-sm text-amber-800 text-left">
-                    Don't forget to check your spam folder if you don't see the email in your inbox.
+                    {t('auth.register.checkSpam')}
                   </p>
                 </div>
               </div>
@@ -511,7 +514,7 @@ export const RegisterPage = () => {
                 onClick={() => navigate('/login')}
                 className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
               >
-                <span>Go to Login</span>
+                <span>{t('auth.register.goToLogin')}</span>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                 </svg>

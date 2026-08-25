@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useLanguage } from '@/context/LanguageContext';
 import { eventService } from '@/services';
 import {
   Plus,
@@ -23,6 +24,7 @@ import {
 
 export const ManageEventsPage = () => {
   const navigate = useNavigate();
+  const { t, locale } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState([]);
   const [filter, setFilter] = useState('all');
@@ -57,7 +59,7 @@ export const ManageEventsPage = () => {
           id: event.id,
           title: event.title,
           startTime: startTime,
-          registeredDate: startTime.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }),
+          registeredDate: startTime.toLocaleDateString(locale, { month: 'numeric', day: 'numeric', year: 'numeric' }),
           location: event.location,
           totalCapacity: event.capacity,
           registered: event.registered_count || 0,
@@ -103,7 +105,7 @@ export const ManageEventsPage = () => {
   };
 
   const handleCancel = async (eventId) => {
-    if (window.confirm('Are you sure you want to cancel this event?')) {
+    if (window.confirm(t('events.manage.cancelConfirm'))) {
       try {
         await eventService.cancelEvent(eventId);
         fetchEvents();
@@ -129,14 +131,9 @@ export const ManageEventsPage = () => {
   };
 
   const getStatusLabel = (status) => {
-    switch (status) {
-      case 'upcoming':
-        return 'Upcoming';
-      case 'past':
-        return 'Past';
-      default:
-        return 'Unknown';
-    }
+    const key = 'events.manage.status.' + status;
+    const translated = t(key);
+    return translated !== key ? translated : t('events.manage.status.unknown');
   };
 
   return (
@@ -153,13 +150,13 @@ export const ManageEventsPage = () => {
             <div className="relative z-10">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/15 backdrop-blur-sm rounded-full mb-6">
                 <Settings className="w-4 h-4" />
-                <span className="text-sm font-medium">Event Management</span>
+                <span className="text-sm font-medium">{t('events.manage.eventManagement')}</span>
               </div>
               <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">
-                Manage Your<br />Events
+                {t('events.manage.manageYourEvents')}<br />{t('events.manage.eventsTitle')}
               </h1>
               <p className="text-blue-100 text-lg max-w-lg">
-                Create, edit, and manage all your organization's events in one place
+                {t('events.manage.subtitle')}
               </p>
             </div>
             
@@ -169,7 +166,7 @@ export const ManageEventsPage = () => {
                 className="px-8 py-4 bg-white text-blue-600 font-semibold rounded-2xl hover:bg-blue-50 transition-all flex items-center gap-2 shadow-lg shadow-blue-900/20"
               >
                 <Plus className="w-5 h-5" />
-                Create New Event
+                {t('events.manage.createNewEvent')}
               </button>
             </div>
           </div>
@@ -182,7 +179,7 @@ export const ManageEventsPage = () => {
                 <CalendarDays className="w-7 h-7 text-blue-600" />
               </div>
               <div className="text-4xl font-bold text-gray-900 mb-2">{events.length}</div>
-              <p className="text-gray-500 text-lg">Total Events</p>
+              <p className="text-gray-500 text-lg">{t('events.manage.totalEvents')}</p>
             </div>
 
             {/* Upcoming Events */}
@@ -191,7 +188,7 @@ export const ManageEventsPage = () => {
                 <TrendingUp className="w-7 h-7" />
               </div>
               <div className="text-4xl font-bold mb-2">{events.filter(e => e.status === 'upcoming').length}</div>
-              <p className="text-emerald-100 text-lg">Upcoming Events</p>
+              <p className="text-emerald-100 text-lg">{t('events.manage.upcomingEvents')}</p>
             </div>
           </div>
         </div>
@@ -206,7 +203,7 @@ export const ManageEventsPage = () => {
                 : 'bg-white text-gray-600 border border-gray-200 hover:border-blue-300 hover:text-blue-600'
             }`}
           >
-            All Events
+            {t('events.manage.allEvents')}
           </button>
           <button
             onClick={() => setFilter('upcoming')}
@@ -216,7 +213,7 @@ export const ManageEventsPage = () => {
                 : 'bg-white text-gray-600 border border-gray-200 hover:border-blue-300 hover:text-blue-600'
             }`}
           >
-            Upcoming
+            {t('events.manage.upcoming')}
           </button>
           <button
             onClick={() => setFilter('past')}
@@ -226,7 +223,7 @@ export const ManageEventsPage = () => {
                 : 'bg-white text-gray-600 border border-gray-200 hover:border-blue-300 hover:text-blue-600'
             }`}
           >
-            Past
+            {t('events.manage.past')}
           </button>
 
           {/* Search */}
@@ -234,7 +231,7 @@ export const ManageEventsPage = () => {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Search events..."
+              placeholder={t('events.manage.searchPlaceholder')}
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
@@ -270,9 +267,9 @@ export const ManageEventsPage = () => {
             <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
               <CalendarDays className="w-10 h-10 text-blue-500" />
             </div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">No events found</h3>
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">{t('events.manage.noEventsFound')}</h3>
             <p className="text-gray-500 mb-6 max-w-sm mx-auto">
-              {filter !== 'all' ? `No ${filter} events available` : 'Create your first event to get started'}
+              {filter !== 'all' ? t('events.manage.noFilteredEvents', { filter: t('events.manage.status.' + filter) }) : t('events.manage.createFirstEvent')}
             </p>
             {filter === 'all' && (
               <button
@@ -280,7 +277,7 @@ export const ManageEventsPage = () => {
                 className="px-8 py-4 bg-blue-600 text-white font-semibold rounded-2xl hover:bg-blue-700 transition-all inline-flex items-center gap-2 shadow-lg shadow-blue-600/20"
               >
                 <Plus className="w-5 h-5" />
-                Create Your First Event
+                {t('events.manage.createYourFirstEvent')}
               </button>
             )}
           </div>
@@ -289,11 +286,11 @@ export const ManageEventsPage = () => {
             {events.map((event) => (
               <div
                 key={event.id}
-                className="group bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-xl hover:border-blue-300 transition-all duration-300"
+                className="group bg-white rounded-2xl border border-gray-200 hover:shadow-xl hover:border-blue-300 transition-all duration-300"
               >
                 <div className="flex flex-col lg:flex-row">
                   {/* Event Image with Overlay */}
-                  <div className="relative w-full lg:w-80 h-56 lg:h-auto flex-shrink-0 overflow-hidden">
+                  <div className="relative w-full lg:w-80 h-56 lg:h-auto flex-shrink-0 overflow-hidden rounded-t-2xl lg:rounded-l-2xl">
                     <img
                       src={event.image}
                       alt={event.title}
@@ -340,7 +337,7 @@ export const ManageEventsPage = () => {
                           {event.title}
                         </h3>
                         {event.organizationName && (
-                          <p className="text-sm text-gray-500">by {event.organizationName}</p>
+                          <p className="text-sm text-gray-500">{t('events.manage.byOrganizer', { name: event.organizationName })}</p>
                         )}
                       </div>
                     </div>
@@ -352,7 +349,7 @@ export const ManageEventsPage = () => {
                           <Calendar className="w-5 h-5 text-blue-600" />
                         </div>
                         <div>
-                          <p className="text-xs text-gray-400 uppercase font-medium">Date</p>
+                          <p className="text-xs text-gray-400 uppercase font-medium">{t('events.manage.date')}</p>
                           <p className="text-sm font-semibold text-gray-900">{event.registeredDate}</p>
                         </div>
                       </div>
@@ -361,7 +358,7 @@ export const ManageEventsPage = () => {
                           <MapPin className="w-5 h-5 text-rose-600" />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-xs text-gray-400 uppercase font-medium">Location</p>
+                          <p className="text-xs text-gray-400 uppercase font-medium">{t('events.manage.location')}</p>
                           <p className="text-sm font-semibold text-gray-900 truncate">{event.location}</p>
                         </div>
                       </div>
@@ -370,7 +367,7 @@ export const ManageEventsPage = () => {
                           <Users className="w-5 h-5 text-violet-600" />
                         </div>
                         <div>
-                          <p className="text-xs text-gray-400 uppercase font-medium">Capacity</p>
+                          <p className="text-xs text-gray-400 uppercase font-medium">{t('events.manage.capacity')}</p>
                           <p className="text-sm font-semibold text-gray-900">{event.registered}/{event.totalCapacity}</p>
                         </div>
                       </div>
@@ -380,8 +377,8 @@ export const ManageEventsPage = () => {
                             <UserPlus className="w-5 h-5 text-emerald-600" />
                           </div>
                           <div>
-                            <p className="text-xs text-gray-400 uppercase font-medium">Staff</p>
-                            <p className="text-sm font-semibold text-gray-900">{event.staffCount} members</p>
+                            <p className="text-xs text-gray-400 uppercase font-medium">{t('events.manage.staff')}</p>
+                            <p className="text-sm font-semibold text-gray-900">{t('events.manage.membersCount', { count: event.staffCount })}</p>
                           </div>
                         </div>
                       )}
@@ -391,7 +388,7 @@ export const ManageEventsPage = () => {
                     <div className="bg-gray-50 rounded-xl p-4 mb-6">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-gray-700">Registration Progress</span>
+                          <span className="text-sm font-semibold text-gray-700">{t('events.manage.registrationProgress')}</span>
                           <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${
                             calculateProgress(event.registered, event.totalCapacity) >= 80
                               ? 'bg-emerald-100 text-emerald-700'
@@ -399,8 +396,8 @@ export const ManageEventsPage = () => {
                               ? 'bg-blue-100 text-blue-700'
                               : 'bg-gray-100 text-gray-600'
                           }`}>
-                            {calculateProgress(event.registered, event.totalCapacity) >= 80 ? 'Almost Full' : 
-                             calculateProgress(event.registered, event.totalCapacity) >= 50 ? 'Filling Up' : 'Open'}
+                            {calculateProgress(event.registered, event.totalCapacity) >= 80 ? t('events.manage.almostFull') : 
+                             calculateProgress(event.registered, event.totalCapacity) >= 50 ? t('events.manage.fillingUp') : t('events.manage.open')}
                           </span>
                         </div>
                         <span className="text-lg font-bold text-blue-600">
@@ -426,21 +423,21 @@ export const ManageEventsPage = () => {
                         className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-semibold flex items-center gap-2"
                       >
                         <Eye className="w-4 h-4" />
-                        View
+                        {t('events.manage.view')}
                       </button>
                       <button
                         onClick={() => handleManageStaff(event.id)}
                         className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-semibold flex items-center gap-2"
                       >
                         <UserPlus className="w-4 h-4" />
-                        Staff
+                        {t('events.manage.staffButton')}
                       </button>
                       <button
                         onClick={() => handleEdit(event.id)}
                         className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors font-semibold flex items-center gap-2 shadow-lg shadow-blue-600/20"
                       >
                         <Edit3 className="w-4 h-4" />
-                        Edit Event
+                        {t('events.manage.editEvent')}
                       </button>
 
                       {/* More actions dropdown */}
@@ -451,7 +448,7 @@ export const ManageEventsPage = () => {
                             setOpenDropdownId(openDropdownId === event.id ? null : event.id);
                           }}
                           className="p-2.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
-                          aria-label="More actions"
+                          aria-label={t('events.manage.moreActions')}
                         >
                           <MoreVertical className="w-5 h-5" />
                         </button>
@@ -468,7 +465,7 @@ export const ManageEventsPage = () => {
                               className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 font-medium"
                             >
                               <X className="w-4 h-4" />
-                              Cancel Event
+                              {t('events.manage.cancelEvent')}
                             </button>
                           </div>
                         )}

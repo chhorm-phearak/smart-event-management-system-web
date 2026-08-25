@@ -1,21 +1,36 @@
+import rathanak from '@/assets/images/rathanak.jpg';
+import menglong from '@/assets/images/menglong.jpg';
+import pheareak from '@/assets/images/pheareak.jpg';
+import koda from '@/assets/images/koda.png';
+
 const testimonials = [
   {
     quote:
       '"Smart Event Management transformed how we organize our conferences. The analytics dashboard is incredible and saved us countless hours."',
-    name: 'Som Ratanak',
+    name: 'Sam Rathanak',
     title: 'Event Director at NTTI',
+    image: rathanak,
   },
   {
     quote:
-      '"Smart Event Management transformed how we organize our conferences. The analytics dashboard is incredible and saved us countless hours."',
+      '"The registration and ticketing flow is seamless. Our attendees love the mobile-friendly experience, and our team cut check-in time in half."',
     name: 'You Menglong',
     title: 'Event Director at NTTI',
+    image: menglong,
   },
   {
     quote:
-      '"Smart Event Management transformed how we organize our conferences. The analytics dashboard is incredible and saved us countless hours."',
+      '"We used to juggle spreadsheets and emails. Now everything from speaker schedules to vendor coordination lives in one place."',
     name: 'Chhorm Phearak',
     title: 'Event Director at NTTI',
+    image: pheareak,
+  },
+  {
+    quote:
+      '"Real-time notifications and group chat kept our entire crew in sync. We finally have one place to manage every detail."',
+    name: 'Keng Koda',
+    title: 'Event Director at NTTI',
+    image: koda,
   },
 ];
 
@@ -32,11 +47,11 @@ export const TestimonialsSection = () => {
             EventFlow.
           </p>
         </div>
-        <div className="grid md:grid-cols-3 gap-10 lg:gap-12">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-10 lg:gap-12">
           {testimonials.map((testimonial) => (
             <div
               key={testimonial.name}
-              className="bg-white rounded-3xl p-10 lg:p-12 shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
+              className="bg-white rounded-3xl p-10 lg:p-12 shadow-sm border border-gray-100 hover:shadow-md transition-shadow flex flex-col h-full"
             >
               <div className="flex gap-1.5 mb-8">
                 {[...Array(5)].map((_, i) => (
@@ -50,11 +65,18 @@ export const TestimonialsSection = () => {
                   </svg>
                 ))}
               </div>
-              <p className="text-lg lg:text-xl text-gray-600 leading-relaxed mb-8 italic">
+              <p className="text-lg lg:text-xl text-gray-600 leading-relaxed mb-8 italic flex-1 min-h-0 line-clamp-4">
                 {testimonial.quote}
               </p>
               <div className="flex items-center gap-5">
-                <div className="w-16 h-16 rounded-full bg-gray-200 flex-shrink-0" />
+                <div className="w-16 h-16 rounded-full bg-gray-200 flex-shrink-0 overflow-hidden">
+                <img
+                  src={testimonial.image}
+                  alt={testimonial.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => { e.target.style.display = 'none'; }}
+                />
+              </div>
                 <div>
                   <p className="font-bold text-gray-900 text-lg lg:text-xl">{testimonial.name}</p>
                   <p className="text-base text-gray-500">{testimonial.title}</p>

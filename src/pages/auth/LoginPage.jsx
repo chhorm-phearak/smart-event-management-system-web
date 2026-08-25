@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import Logo from '@/assets/icons/MPR Smart Event.png';
 
 export const LoginPage = () => {
@@ -10,6 +12,7 @@ export const LoginPage = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -37,17 +40,18 @@ export const LoginPage = () => {
           }
         }, 50);
       } else {
-        setError(result.error || 'Login failed. Please try again.');
+        setError(result.error || t('auth.login.loginFailed'));
         setIsLoading(false);
       }
     } catch (error) {
-      setError(error.message || 'Login failed. Please try again.');
+      setError(error.message || t('auth.login.loginFailed'));
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+    <div className="relative min-h-screen flex bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      <div className="absolute top-4 right-4 z-50"><LanguageSwitcher /></div>
       {/* Left Section - Branding & Illustration */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 items-center justify-center relative overflow-hidden">
         {/* Decorative Elements */}
@@ -63,7 +67,7 @@ export const LoginPage = () => {
               <img src={Logo} alt="MPR Smart Event" className="w-16 h-16 rounded-xl object-contain" />
             </div>
             <h1 className="text-5xl font-bold text-white mb-4">MPR Smart Event</h1>
-            <p className="text-xl text-blue-100 mb-8">The smartest way to manage and attend events</p>
+            <p className="text-xl text-blue-100 mb-8">{t('auth.brandTagline')}</p>
           </div>
           
           <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20">
@@ -75,8 +79,8 @@ export const LoginPage = () => {
                   </svg>
                 </div>
                 <div>
-                  <p className="font-semibold">Easy Event Management</p>
-                  <p className="text-sm text-blue-100">Create events, manage attendees, and assign staff</p>
+                  <p className="font-semibold">{t('auth.features.easyEventManagement')}</p>
+                  <p className="text-sm text-blue-100">{t('auth.features.easyEventManagementDesc')}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 text-white">
@@ -86,8 +90,8 @@ export const LoginPage = () => {
                   </svg>
                 </div>
                 <div>
-                  <p className="font-semibold">Connect with Attendees</p>
-                  <p className="text-sm text-blue-100">Join events worldwide with QR tickets</p>
+                  <p className="font-semibold">{t('auth.features.connectAttendees')}</p>
+                  <p className="text-sm text-blue-100">{t('auth.features.connectAttendeesDesc')}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 text-white">
@@ -97,8 +101,8 @@ export const LoginPage = () => {
                   </svg>
                 </div>
                 <div>
-                  <p className="font-semibold">Track Your Success</p>
-                  <p className="text-sm text-blue-100">Monitor registrations, groups, and event analytics</p>
+                  <p className="font-semibold">{t('auth.features.trackSuccess')}</p>
+                  <p className="text-sm text-blue-100">{t('auth.features.trackSuccessDesc')}</p>
                 </div>
               </div>
             </div>
@@ -118,20 +122,20 @@ export const LoginPage = () => {
           {/* Login Card */}
           <div className="bg-white rounded-2xl shadow-2xl p-8 lg:p-10 border border-gray-100">
             <div className="mb-8">
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">Login</h2>
-              <p className="text-gray-600">Sign in to discover events or manage your own</p>
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">{t('auth.login.title')}</h2>
+              <p className="text-gray-600">{t('auth.login.subtitle')}</p>
             </div>
 
             {/* Sign In / Sign Up Tabs */}
             <div className="flex gap-2 mb-8 bg-gray-100 p-1 rounded-xl">
               <button className="flex-1 bg-white text-blue-600 py-2.5 px-4 rounded-lg font-semibold shadow-sm">
-                Sign In
+                {t('auth.signIn')}
               </button>
               <Link
                 to="/register"
                 className="flex-1 text-gray-700 py-2.5 px-4 rounded-lg font-semibold text-center hover:bg-white/50 transition-colors"
               >
-                Sign Up
+                {t('auth.signUp')}
               </Link>
             </div>
 
@@ -149,7 +153,7 @@ export const LoginPage = () => {
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
-                  Email Address
+                  {t('auth.login.emailLabel')}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -162,7 +166,7 @@ export const LoginPage = () => {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Enter your email"
+                    placeholder={t('auth.login.emailPlaceholder')}
                     required
                     className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   />
@@ -171,7 +175,7 @@ export const LoginPage = () => {
 
               <div>
                 <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-2">
-                  Password
+                  {t('auth.login.passwordLabel')}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -184,7 +188,7 @@ export const LoginPage = () => {
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
+                    placeholder={t('auth.login.passwordPlaceholder')}
                     required
                     className="w-full pl-12 pr-12 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   />
@@ -210,10 +214,10 @@ export const LoginPage = () => {
               <div className="flex items-center justify-between">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
-                  <span className="text-sm text-gray-600">Remember me</span>
+                  <span className="text-sm text-gray-600">{t('auth.login.rememberMe')}</span>
                 </label>
                 <Link to="/forgot-password" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-                  Forgot password?
+                  {t('auth.login.forgotPassword')}
                 </Link>
               </div>
 
@@ -225,11 +229,11 @@ export const LoginPage = () => {
                 {isLoading ? (
                   <>
                     <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                    <span>Signing in...</span>
+                    <span>{t('auth.login.signingIn')}</span>
                   </>
                 ) : (
                   <>
-                    <span>Sign In</span>
+                    <span>{t('auth.signIn')}</span>
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                     </svg>
@@ -244,7 +248,7 @@ export const LoginPage = () => {
                 <div className="w-full border-t border-gray-300"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-white text-gray-500">Or continue with</span>
+                <span className="px-4 bg-white text-gray-500">{t('auth.login.orContinueWith')}</span>
               </div>
             </div>
 
@@ -257,22 +261,22 @@ export const LoginPage = () => {
                   <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                   <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                 </svg>
-                <span className="text-sm">Google</span>
+                <span className="text-sm">{t('auth.google')}</span>
               </button>
               <button className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-50 transition-colors font-medium text-gray-700">
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                 </svg>
-                <span className="text-sm">Facebook</span>
+                <span className="text-sm">{t('auth.facebook')}</span>
               </button>
             </div>
 
             {/* Footer */}
             <p className="mt-8 text-center text-sm text-gray-600">
-              Don't have an account?{' '}
-              <Link to="/register" className="text-blue-600 hover:text-blue-700 font-semibold">
-                Join MPR Smart Event
-              </Link>
+              {t('auth.login.noAccount')}{' '}
+                <Link to="/register" className="text-blue-600 hover:text-blue-700 font-semibold">
+                  {t('auth.login.joinBrand')}
+                </Link>
             </p>
           </div>
         </div>

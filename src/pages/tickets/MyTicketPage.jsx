@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { eventService } from '@/services';
 import { getApiOrigin } from '@/utils';
+import { useLanguage } from '@/context/LanguageContext';
 import {
   Search,
   Calendar,
@@ -24,11 +25,11 @@ import {
 
 const isValidDate = (date) => date instanceof Date && !Number.isNaN(date.getTime());
 
-const formatTimeFromISO = (isoString) => {
+const formatTimeFromISO = (isoString, locale = 'en-US') => {
   if (!isoString) return '';
   const date = new Date(isoString);
   if (!isValidDate(date)) return '';
-  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: true });
 };
 
 const getRegisteredEventsPayload = (res) => {
@@ -50,7 +51,7 @@ const toAbsoluteImageUrl = (value) => {
   return `${apiOrigin}/${value}`;
 };
 
-const mapRawTicket = (raw, index = 0) => {
+const mapRawTicket = (raw, index = 0, locale = 'en-US') => {
   const images = raw?.images ?? raw?.event_images ?? [];
   const firstImage = Array.isArray(images) ? images[0] : images;
   const rawImageUrl =
@@ -61,7 +62,7 @@ const mapRawTicket = (raw, index = 0) => {
   const imageUrl = toAbsoluteImageUrl(rawImageUrl) || 'https://via.placeholder.com/1200x400?text=Event';
 
   const start = raw?.start_time ?? raw?.startTime ?? '';
-  const fallbackTime = formatTimeFromISO(start);
+  const fallbackTime = formatTimeFromISO(start, locale);
 
   const qrImage = (
     (raw?.qr_image_url || raw?.qrcode) ??
@@ -97,6 +98,7 @@ const mapRawTicket = (raw, index = 0) => {
 
 export const MyTicketPage = () => {
   const navigate = useNavigate();
+  const { t, locale } = useLanguage();
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -114,7 +116,7 @@ export const MyTicketPage = () => {
       setLoading(true);
       const response = await eventService.getRegisteredEvents();
       const rawTickets = getRegisteredEventsPayload(response);
-      const normalizedTickets = rawTickets.map((item, index) => mapRawTicket(item, index));
+      const normalizedTickets = rawTickets.map((item, index) => mapRawTicket(item, index, locale));
       setTickets(normalizedTickets);
     } catch (error) {
       console.error('Error fetching tickets:', error);
@@ -126,7 +128,7 @@ export const MyTicketPage = () => {
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
+    return date.toLocaleDateString(locale, { 
       year: 'numeric', 
       month: 'short', 
       day: '2-digit' 
@@ -134,11 +136,14 @@ export const MyTicketPage = () => {
   };
 
   const formatTime = (timeString) => {
-    const [hours, minutes] = timeString.split(':');
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes} ${ampm}`;
+    if (!timeString) return '—';
+    if (String(timeString).includes('T') || String(timeString).match(/^\d{4}-\d{2}-\d{2}/)) {
+      return formatTimeFromISO(timeString, locale) || '—';
+    }
+    const [hours, minutes] = String(timeString).split(':');
+    const date = new Date();
+    date.setHours(parseInt(hours, 10) || 0, parseInt(minutes, 10) || 0, 0);
+    return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: true });
   };
 
   const handleViewEvent = (eventId) => {
@@ -157,21 +162,21 @@ export const MyTicketPage = () => {
 
   const handleCopyTicketCode = async () => {
     if (!selectedTicket?.qrTicket) {
-      toast.error('No ticket code available to copy.');
+      toast.error(t('tickets.noTicketCodeToCopy'));
       return;
     }
     try {
       await navigator.clipboard.writeText(selectedTicket.qrTicket);
-      toast.success('Ticket code copied to clipboard!');
+      toast.success(t('tickets.copied'));
     } catch (error) {
       console.error('Copy error:', error);
-      toast.error('Failed to copy ticket code.');
+      toast.error(t('tickets.copyFailed'));
     }
   };
 
   const handleDownloadQr = async () => {
     if (!selectedTicket?.qrImage) {
-      toast.error('No QR code available to download.');
+      toast.error(t('tickets.noQrToDownload'));
       return;
     }
 
@@ -235,10 +240,10 @@ export const MyTicketPage = () => {
         }
       }
       
-      toast.success('Ticket downloaded successfully!');
+      toast.success(t('tickets.downloaded'));
     } catch (error) {
       console.error('Download error:', error);
-      toast.error('Failed to download ticket. Please try again.');
+      toast.error(t('tickets.downloadFailed'));
     }
   };
 
@@ -286,13 +291,13 @@ export const MyTicketPage = () => {
             <div className="relative z-10">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/15 backdrop-blur-sm rounded-full mb-6">
                 <Ticket className="w-4 h-4" />
-                <span className="text-sm font-medium">My Tickets</span>
+                <span className="text-sm font-medium">{t('tickets.myTickets')}</span>
               </div>
               <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">
-                Your Event<br />Tickets
+                {t('tickets.yourEvent')}<br />{t('tickets.tickets')}
               </h1>
               <p className="text-blue-100 text-lg max-w-lg">
-                Access all your registered events in one place. Show your QR code at the venue for quick check-in.
+                {t('tickets.subtitle')}
               </p>
             </div>
             
@@ -301,7 +306,7 @@ export const MyTicketPage = () => {
                 <CheckCircle className="w-6 h-6" />
                 <div>
                   <div className="text-2xl font-bold">{tickets.length}</div>
-                  <div className="text-sm text-blue-200">Active Tickets</div>
+                  <div className="text-sm text-blue-200">{t('tickets.activeTickets')}</div>
                 </div>
               </div>
             </div>
@@ -317,10 +322,10 @@ export const MyTicketPage = () => {
               <div className="text-4xl font-bold text-gray-900 mb-2">
                 {tickets.filter(t => new Date(t.date) > new Date()).length}
               </div>
-              <p className="text-gray-500 text-lg">Upcoming Events</p>
+              <p className="text-gray-500 text-lg">{t('tickets.upcomingEvents')}</p>
               <p className="text-blue-600 mt-3 font-medium flex items-center gap-2">
                 <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                Don't miss out!
+                {t('tickets.dontMissOut')}
               </p>
             </div>
 
@@ -330,7 +335,7 @@ export const MyTicketPage = () => {
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search tickets..."
+                  placeholder={t('tickets.searchPlaceholder')}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-xl border-2 border-transparent focus:bg-white focus:border-blue-500 outline-none transition-all text-gray-900"
@@ -349,7 +354,7 @@ export const MyTicketPage = () => {
         <div className="flex flex-wrap items-center gap-4 mb-8">
           <div className="flex items-center gap-2">
             <Filter className="w-5 h-5 text-gray-400" />
-            <span className="text-sm font-medium text-gray-500">Filter:</span>
+            <span className="text-sm font-medium text-gray-500">{t('tickets.filter')}</span>
           </div>
           
           <select
@@ -357,7 +362,7 @@ export const MyTicketPage = () => {
             onChange={(e) => setSelectedCategory(e.target.value)}
             className="px-4 py-2 bg-white border border-gray-200 rounded-full text-sm font-medium text-gray-700 cursor-pointer hover:border-blue-300 transition-all"
           >
-            <option value="all">All Categories</option>
+            <option value="all">{t('tickets.allCategories')}</option>
             {categories.filter(cat => cat !== 'all').map(category => (
               <option key={category} value={category}>{category}</option>
             ))}
@@ -368,9 +373,9 @@ export const MyTicketPage = () => {
             onChange={(e) => setSelectedDate(e.target.value)}
             className="px-4 py-2 bg-white border border-gray-200 rounded-full text-sm font-medium text-gray-700 cursor-pointer hover:border-blue-300 transition-all"
           >
-            <option value="all">All Dates</option>
-            <option value="upcoming">Upcoming</option>
-            <option value="past">Past Events</option>
+            <option value="all">{t('tickets.allDates')}</option>
+            <option value="upcoming">{t('tickets.upcoming')}</option>
+            <option value="past">{t('tickets.pastEvents')}</option>
           </select>
 
           <button
@@ -378,16 +383,16 @@ export const MyTicketPage = () => {
             className="ml-auto flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-blue-600 transition-colors rounded-full hover:bg-blue-50"
           >
             <RefreshCw className="w-4 h-4" />
-            <span className="text-sm font-medium">Refresh</span>
+            <span className="text-sm font-medium">{t('tickets.refresh')}</span>
           </button>
         </div>
 
         {/* Section Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Your Tickets</h2>
+            <h2 className="text-2xl font-bold text-gray-900">{t('tickets.yourTickets')}</h2>
             <p className="text-gray-500 mt-1">
-              {loading ? 'Loading...' : `${filteredTickets.length} tickets found`}
+              {loading ? t('tickets.loading') : t('tickets.ticketsFound', { count: filteredTickets.length })}
             </p>
           </div>
         </div>
@@ -423,17 +428,17 @@ export const MyTicketPage = () => {
             <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Ticket className="w-8 h-8 text-gray-400" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">No tickets found</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">{t('tickets.noTicketsFound')}</h3>
             <p className="text-gray-500 mb-6">
               {searchTerm || selectedCategory !== 'all' || selectedDate !== 'all' 
-                ? 'Try adjusting your filters.' 
-                : 'Register for events to see your tickets here.'}
+                ? t('tickets.adjustFilters') 
+                : t('tickets.registerForEvents')}
             </p>
             <button
               onClick={() => navigate('/all-events')}
               className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all inline-flex items-center gap-2"
             >
-              Browse Events
+              {t('tickets.browseEvents')}
               <ArrowRight className="w-5 h-5" />
             </button>
           </div>
@@ -454,7 +459,7 @@ export const MyTicketPage = () => {
                   {/* Category badge */}
                   <div className="absolute top-4 left-4">
                     <span className={`px-3 py-1.5 rounded-xl text-xs font-bold border backdrop-blur-sm bg-white/90 ${getCategoryStyle(ticket.category)}`}>
-                      {ticket.category}
+                      {t('events.allEvents.categories.' + (ticket.category?.toLowerCase() || 'other'))}
                     </span>
                   </div>
                   
@@ -462,18 +467,18 @@ export const MyTicketPage = () => {
                   <div className="absolute bottom-4 left-4">
                     <div className="px-4 py-2 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg">
                       <div className="text-xl font-bold text-gray-900 leading-none">{new Date(ticket.date).getDate()}</div>
-                      <div className="text-xs font-semibold text-gray-500 uppercase">{new Date(ticket.date).toLocaleDateString('en-US', { month: 'short' })}</div>
+                      <div className="text-xs font-semibold text-gray-500 uppercase">{new Date(ticket.date).toLocaleDateString(locale, { month: 'short' })}</div>
                     </div>
                   </div>
                   
                   {/* Status badge */}
                   {new Date(ticket.date) > new Date() ? (
                     <div className="absolute top-4 right-4 px-3 py-1.5 bg-emerald-500 text-white text-xs font-bold rounded-xl">
-                      Upcoming
+                      {t('tickets.upcoming')}
                     </div>
                   ) : (
                     <div className="absolute top-4 right-4 px-3 py-1.5 bg-gray-500 text-white text-xs font-bold rounded-xl">
-                      Past
+                      {t('tickets.past')}
                     </div>
                   )}
                 </div>
@@ -505,7 +510,7 @@ export const MyTicketPage = () => {
                       onClick={() => handleViewEvent(ticket.eventId)}
                       className="flex-1 py-3.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                     >
-                      View Details
+                      {t('tickets.viewDetails')}
                       <ArrowRight className="w-4 h-4" />
                     </button>
                     <button
@@ -513,7 +518,7 @@ export const MyTicketPage = () => {
                       className="flex-1 py-3.5 border-2 border-blue-200 text-blue-600 rounded-xl hover:bg-blue-50 hover:border-blue-300 transition-colors font-semibold flex items-center justify-center gap-2"
                     >
                       <QrCode className="w-4 h-4" />
-                      QR Ticket
+                      {t('tickets.qrTicket')}
                     </button>
                   </div>
                 </div>
@@ -537,8 +542,8 @@ export const MyTicketPage = () => {
                     </svg>
                   </div>
                   <div>
-                    <h2 className="text-2xl lg:text-3xl font-bold">Your Ticket</h2>
-                    <p className="text-blue-100 text-base">Present this QR code at the event</p>
+                    <h2 className="text-2xl lg:text-3xl font-bold">{t('tickets.yourTicket')}</h2>
+                    <p className="text-blue-100 text-base">{t('tickets.presentQr')}</p>
                   </div>
                 </div>
                 <button
@@ -602,7 +607,7 @@ export const MyTicketPage = () => {
                     )}
                   </div>
                   <p className="text-sm text-gray-600 text-center font-medium">
-                    Scan this QR code at the event entrance
+                    {t('tickets.scanQr')}
                   </p>
                 </div>
               </div>
@@ -610,22 +615,22 @@ export const MyTicketPage = () => {
               {/* Ticket Code Section */}
               <div className="bg-gray-50 rounded-xl p-5 mb-6">
                 <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
-                  Ticket Code
+                  {t('tickets.ticketCode')}
                 </label>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 px-5 py-4 bg-white border-2 border-gray-300 rounded-lg font-mono font-semibold text-lg text-gray-900 text-center">
-                    {selectedTicket.qrTicket || 'Ticket code unavailable'}
+                    {selectedTicket.qrTicket || t('tickets.ticketCodeUnavailable')}
                   </div>
                   <button
                     onClick={handleCopyTicketCode}
                     disabled={!selectedTicket.qrTicket}
                     className="px-5 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Copy ticket code"
+                    title={t('tickets.copyTitle')}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                     </svg>
-                    <span className="text-sm font-medium">Copy</span>
+                    <span className="text-sm font-medium">{t('tickets.copy')}</span>
                   </button>
                 </div>
               </div>
@@ -637,7 +642,7 @@ export const MyTicketPage = () => {
                   onClick={handleCloseQrModal}
                   className="flex-1 px-6 py-4 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold text-base"
                 >
-                  Close
+                  {t('common.close')}
                 </button>
                 <button
                   onClick={handleDownloadQr}
@@ -646,7 +651,7 @@ export const MyTicketPage = () => {
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
-                  Download Ticket
+                  {t('tickets.downloadTicket')}
                 </button>
               </div>
             </div>

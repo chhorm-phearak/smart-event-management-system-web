@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { eventService } from '@/services';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 import {
   Search,
   Calendar,
@@ -36,16 +37,7 @@ const useDebounce = (value, delay = 300) => {
   return debouncedValue;
 };
 
-// Format utilities
-const formatEventDate = (isoString) => {
-  if (!isoString) return '';
-  return new Date(isoString).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' });
-};
-
-const formatEventTime = (isoString) => {
-  if (!isoString) return '';
-  return new Date(isoString).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-};
+// Format utilities are defined inside the component so they can use the selected locale.
 
 // Category styles
 const CATEGORY_STYLES = {
@@ -61,8 +53,10 @@ const getCategoryStyle = (category) => CATEGORY_STYLES[category?.toLowerCase()] 
 
 // Clean Event Card - Larger Size
 const EventCard = ({ event, onNavigate, onShowQR }) => {
+  const { t, locale } = useLanguage();
   const categoryStyle = getCategoryStyle(event.category);
-  
+  const categoryLabel = t('events.allEvents.categories.' + (event.category?.toLowerCase() || 'other'));
+
   return (
     <div 
       className="group bg-white rounded-3xl overflow-hidden border border-gray-200 hover:border-blue-300 hover:shadow-xl transition-all duration-300 cursor-pointer"
@@ -81,7 +75,7 @@ const EventCard = ({ event, onNavigate, onShowQR }) => {
         {/* Category badge */}
         <div className="absolute top-4 left-4">
           <span className={`px-3 py-1.5 rounded-xl text-xs font-bold border backdrop-blur-sm bg-white/90 ${categoryStyle}`}>
-            {event.category}
+            {categoryLabel}
           </span>
         </div>
         
@@ -99,7 +93,7 @@ const EventCard = ({ event, onNavigate, onShowQR }) => {
         <div className="absolute bottom-4 left-4">
           <div className="px-4 py-2 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg">
             <div className="text-xl font-bold text-gray-900 leading-none">{new Date(event.start_time).getDate()}</div>
-            <div className="text-xs font-semibold text-gray-500 uppercase">{new Date(event.start_time).toLocaleDateString('en-US', { month: 'short' })}</div>
+            <div className="text-xs font-semibold text-gray-500 uppercase">{new Date(event.start_time).toLocaleDateString(locale, { month: 'short' })}</div>
           </div>
         </div>
       </div>
@@ -127,7 +121,7 @@ const EventCard = ({ event, onNavigate, onShowQR }) => {
             <div className="p-2 bg-emerald-50 rounded-lg">
               <Users className="w-4 h-4 text-emerald-500" />
             </div>
-            <span className="font-medium">{event.maxAttendees} attendees</span>
+            <span className="font-medium">{t('common.attendees', { count: event.maxAttendees })}</span>
           </div>
         </div>
         
@@ -135,7 +129,7 @@ const EventCard = ({ event, onNavigate, onShowQR }) => {
           className="w-full py-3.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
           onClick={(e) => { e.stopPropagation(); onNavigate(event.id); }}
         >
-          View Details
+          {t('events.allEvents.viewDetails')}
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>
@@ -170,6 +164,7 @@ const EventCardSkeleton = () => (
 
 // QR Modal
 const QRCodeModal = ({ selectedQRCode, onClose, onDownload }) => {
+  const { t } = useLanguage();
   if (!selectedQRCode) return null;
   const qrSrc = selectedQRCode.qrcode.startsWith('data:')
     ? selectedQRCode.qrcode
@@ -181,7 +176,7 @@ const QRCodeModal = ({ selectedQRCode, onClose, onDownload }) => {
         <div className="flex justify-between items-start mb-6">
           <div>
             <h3 className="text-xl font-bold text-gray-900 line-clamp-1">{selectedQRCode.title}</h3>
-            <p className="text-sm text-gray-500 mt-1">Scan to access event</p>
+            <p className="text-sm text-gray-500 mt-1">{t('events.allEvents.scanQr')}</p>
           </div>
           <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all">
             <X className="w-5 h-5" />
@@ -193,9 +188,9 @@ const QRCodeModal = ({ selectedQRCode, onClose, onDownload }) => {
           </div>
         </div>
         <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 px-5 py-3 border-2 border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold">Close</button>
+          <button onClick={onClose} className="flex-1 px-5 py-3 border-2 border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold">{t('common.close')}</button>
           <button onClick={() => onDownload(selectedQRCode.qrcode, selectedQRCode.title)} className="flex-1 px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25">
-            <Download className="w-4 h-4" /> Download
+            <Download className="w-4 h-4" /> {t('common.download')}
           </button>
         </div>
       </div>
@@ -204,18 +199,22 @@ const QRCodeModal = ({ selectedQRCode, onClose, onDownload }) => {
 };
 
 // Category Pill
-const CategoryPill = ({ category, active, onClick }) => (
-  <button
-    onClick={onClick}
-    className={`px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
-      active 
-        ? 'bg-blue-600 text-white' 
-        : 'bg-white border border-gray-200 text-gray-600 hover:border-blue-300 hover:bg-blue-50'
-    }`}
-  >
-    {category}
-  </button>
-);
+const CategoryPill = ({ category, active, onClick }) => {
+  const { t } = useLanguage();
+  const label = t('events.allEvents.categories.' + (category?.toLowerCase() || 'other'));
+  return (
+    <button
+      onClick={onClick}
+      className={`px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
+        active
+          ? 'bg-blue-600 text-white'
+          : 'bg-white border border-gray-200 text-gray-600 hover:border-blue-300 hover:bg-blue-50'
+      }`}
+    >
+      {label}
+    </button>
+  );
+};
 
 // Constants
 const CATEGORIES = ['All', 'Technology', 'Business', 'Education', 'Entertainment', 'Sports'];
@@ -224,6 +223,7 @@ const ITEMS_PER_PAGE = 12;
 
 // Organization Required Modal
 const OrganizationRequiredModal = ({ isOpen, onClose, onRegister }) => {
+  const { t } = useLanguage();
   if (!isOpen) return null;
   
   return (
@@ -235,22 +235,22 @@ const OrganizationRequiredModal = ({ isOpen, onClose, onRegister }) => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
-          <h3 className="text-2xl font-bold text-gray-900 mb-3">Organization Required</h3>
+          <h3 className="text-2xl font-bold text-gray-900 mb-3">{t('events.allEvents.organizationRequired')}</h3>
           <p className="text-gray-500 mb-8">
-            You need to register as an organization to create events. Join as an organizer to unlock this feature and start hosting amazing events!
+            {t('events.allEvents.organizationRequiredSub')}
           </p>
           <div className="flex gap-3">
             <button
               onClick={onClose}
               className="flex-1 px-5 py-3 border-2 border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-all"
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               onClick={onRegister}
               className="flex-1 px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/25 hover:shadow-xl transition-all"
             >
-              Register Organization
+              {t('header.registerOrganization')}
             </button>
           </div>
         </div>
@@ -262,7 +262,23 @@ const OrganizationRequiredModal = ({ isOpen, onClose, onRegister }) => {
 export const AllEventsPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t, locale } = useLanguage();
   const isOrganizer = !!(user?.organization_id ?? user?.organizationId ?? user?.organization?.id);
+  const formatEventDate = useCallback((isoString) => {
+    if (!isoString) return '';
+    return new Date(isoString).toLocaleDateString(locale, { year: 'numeric', month: 'short', day: '2-digit' });
+  }, [locale]);
+  const formatEventTime = useCallback((isoString) => {
+    if (!isoString) return '';
+    return new Date(isoString).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: true });
+  }, [locale]);
+  const dateFilterLabels = {
+    All: t('events.allEvents.dateFilters.anyTime'),
+    Today: t('events.allEvents.dateFilters.today'),
+    'This Week': t('events.allEvents.dateFilters.thisWeek'),
+    'This Month': t('events.allEvents.dateFilters.thisMonth'),
+    Upcoming: t('events.allEvents.dateFilters.upcoming'),
+  };
   const [showOrgRequiredModal, setShowOrgRequiredModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -368,11 +384,11 @@ export const AllEventsPage = () => {
     const paginatedEvents = filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
     return { events: paginatedEvents, totalPages, totalCount };
-  }, [rawEvents, debouncedSearch, selectedCategory, selectedDate, currentPage]);
+  }, [rawEvents, debouncedSearch, selectedCategory, selectedDate, currentPage, formatEventDate, formatEventTime]);
 
   const handleDownloadQr = async (qrCode, title) => {
     if (!qrCode) {
-      toast.error('No QR code available to download.');
+      toast.error(t('events.allEvents.noQr'));
       return;
     }
 
@@ -440,10 +456,10 @@ export const AllEventsPage = () => {
         }
       }
       
-      toast.success('QR code downloaded successfully!');
+      toast.success(t('events.allEvents.qrDownloaded'));
     } catch (error) {
       console.error('Download error:', error);
-      toast.error('Failed to download QR code. Please try again.');
+      toast.error(t('events.allEvents.qrDownloadFailed'));
     }
   };
 
@@ -462,13 +478,13 @@ export const AllEventsPage = () => {
             <div className="relative z-10">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/15 backdrop-blur-sm rounded-full mb-6">
                 <Sparkles className="w-4 h-4" />
-                <span className="text-sm font-medium">Discover Events</span>
+                <span className="text-sm font-medium">{t('events.allEvents.discoverEvents')}</span>
               </div>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4 leading-tight">
-                Find Amazing<br />Events Near You
+                {t('events.allEvents.findAmazing')}<br />{t('events.allEvents.eventsNearYou')}
               </h1>
               <p className="text-blue-100 text-lg mb-8 max-w-lg">
-                Connect with people, learn new things, and create unforgettable memories at events happening around you.
+                {t('events.allEvents.subtitle')}
               </p>
             </div>
             
@@ -478,7 +494,7 @@ export const AllEventsPage = () => {
                 className="px-8 py-4 bg-white text-blue-600 font-semibold rounded-2xl hover:bg-blue-50 transition-all flex items-center gap-2 shadow-lg shadow-blue-900/20"
               >
                 <Plus className="w-5 h-5" />
-                Create Event
+                {t('events.allEvents.createEvent')}
               </button>
               <div className="flex items-center gap-3 text-white/80">
                 <div className="flex -space-x-2">
@@ -486,7 +502,7 @@ export const AllEventsPage = () => {
                   <div className="w-10 h-10 rounded-full bg-indigo-400 border-2 border-white/30" />
                   <div className="w-10 h-10 rounded-full bg-purple-400 border-2 border-white/30" />
                 </div>
-                <span className="text-sm">Join {totalCount}+ events</span>
+                <span className="text-sm">{t('events.allEvents.joinEvents', { count: totalCount })}</span>
               </div>
             </div>
           </div>
@@ -499,10 +515,10 @@ export const AllEventsPage = () => {
                 <TrendingUp className="w-7 h-7 text-emerald-600" />
               </div>
               <div className="text-5xl font-bold text-gray-900 mb-2">1000+</div>
-              <p className="text-gray-500 text-lg">Events Hosted</p>
+              <p className="text-gray-500 text-lg">{t('events.allEvents.eventsHosted')}</p>
               <p className="text-emerald-600 mt-3 font-medium flex items-center gap-2">
                 <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                And growing every day
+                {t('events.allEvents.andGrowing')}
               </p>
             </div>
 
@@ -511,10 +527,10 @@ export const AllEventsPage = () => {
               <div className="p-4 bg-white/20 rounded-2xl w-fit mb-5">
                 <Rocket className="w-7 h-7" />
               </div>
-              <h3 className="text-2xl font-bold mb-2">Get Started</h3>
-              <p className="text-blue-100 mb-4">Browse events or create your own amazing experience</p>
+              <h3 className="text-2xl font-bold mb-2">{t('events.allEvents.getStarted')}</h3>
+              <p className="text-blue-100 mb-4">{t('events.allEvents.getStartedSub')}</p>
               <button className="flex items-center gap-2 font-semibold hover:gap-3 transition-all">
-                <span>Explore now</span>
+                <span>{t('events.allEvents.exploreNow')}</span>
                 <ArrowRight className="w-5 h-5" />
               </button>
             </div>
@@ -528,8 +544,8 @@ export const AllEventsPage = () => {
             <div className="p-3 bg-violet-100 rounded-xl w-fit mb-4">
               <Target className="w-6 h-6 text-violet-600" />
             </div>
-            <h3 className="font-bold text-gray-900 text-lg mb-2">Find Your Interest</h3>
-            <p className="text-gray-500">Filter by category to find events that match your passion and interests.</p>
+            <h3 className="font-bold text-gray-900 text-lg mb-2">{t('events.allEvents.findYourInterest')}</h3>
+            <p className="text-gray-500">{t('events.allEvents.findYourInterestSub')}</p>
           </div>
 
           {/* Info Card 2 */}
@@ -537,8 +553,8 @@ export const AllEventsPage = () => {
             <div className="p-3 bg-rose-100 rounded-xl w-fit mb-4">
               <Globe className="w-6 h-6 text-rose-600" />
             </div>
-            <h3 className="font-bold text-gray-900 text-lg mb-2">Connect Globally</h3>
-            <p className="text-gray-500">Join events from anywhere and meet like-minded people from around the world.</p>
+            <h3 className="font-bold text-gray-900 text-lg mb-2">{t('events.allEvents.connectGlobally')}</h3>
+            <p className="text-gray-500">{t('events.allEvents.connectGloballySub')}</p>
           </div>
 
           {/* Search Card */}
@@ -547,7 +563,7 @@ export const AllEventsPage = () => {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search events..."
+                placeholder={t('events.allEvents.searchPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-xl border-2 border-transparent focus:bg-white focus:border-blue-500 outline-none transition-all text-gray-900"
@@ -558,13 +574,13 @@ export const AllEventsPage = () => {
                 </button>
               )}
             </div>
-            <p className="text-gray-400 text-sm mt-3">Search by name, location, or category</p>
+            <p className="text-gray-400 text-sm mt-3">{t('events.allEvents.searchHint')}</p>
           </div>
         </div>
 
         {/* Category Filter */}
         <div className="flex items-center gap-3 mb-8 overflow-x-auto pb-2">
-          <span className="text-sm font-medium text-gray-500 whitespace-nowrap">Filter by:</span>
+          <span className="text-sm font-medium text-gray-500 whitespace-nowrap">{t('events.allEvents.filterBy')}</span>
           <div className="flex items-center gap-2">
             {CATEGORIES.map((cat) => (
               <CategoryPill
@@ -584,7 +600,7 @@ export const AllEventsPage = () => {
             >
               {DATE_FILTERS.map((filter) => (
                 <option key={filter} value={filter === 'All' ? 'all' : filter.toLowerCase()}>
-                  {filter === 'All' ? 'Any Time' : filter}
+                  {dateFilterLabels[filter]}
                 </option>
               ))}
             </select>
@@ -595,7 +611,7 @@ export const AllEventsPage = () => {
                 className="px-4 py-2 bg-red-50 text-red-600 rounded-full text-sm font-medium hover:bg-red-100 transition-all flex items-center gap-1"
               >
                 <X className="w-4 h-4" />
-                Clear
+                {t('events.allEvents.clear')}
               </button>
             )}
           </div>
@@ -605,10 +621,10 @@ export const AllEventsPage = () => {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">
-              {hasActiveFilters ? 'Search Results' : 'All Events'}
+              {hasActiveFilters ? t('events.allEvents.searchResults') : t('events.allEvents.allEvents')}
             </h2>
             <p className="text-gray-500 mt-1">
-              {loading ? 'Loading...' : `${totalCount} events found`}
+              {loading ? t('events.allEvents.loading') : t('events.allEvents.eventsFound', { count: totalCount })}
             </p>
           </div>
         </div>
@@ -619,10 +635,10 @@ export const AllEventsPage = () => {
             <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <X className="w-8 h-8 text-red-500" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Failed to load events</h3>
-            <p className="text-gray-500 mb-6">Something went wrong. Please try again.</p>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">{t('events.allEvents.failedToLoad')}</h3>
+            <p className="text-gray-500 mb-6">{t('events.allEvents.errorSub')}</p>
             <button onClick={() => refetch()} className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all">
-              Try Again
+              {t('common.tryAgain')}
             </button>
           </div>
         ) : loading ? (
@@ -636,15 +652,15 @@ export const AllEventsPage = () => {
             <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <CalendarDays className="w-8 h-8 text-gray-400" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">No events found</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">{t('events.allEvents.noEventsFound')}</h3>
             <p className="text-gray-500 mb-6">
-              {hasActiveFilters ? 'Try adjusting your filters.' : 'Be the first to create an event!'}
+              {hasActiveFilters ? t('events.allEvents.adjustFilters') : t('events.allEvents.beFirst')}
             </p>
             <button
               onClick={hasActiveFilters ? clearFilters : () => isOrganizer ? navigate('/create-event') : setShowOrgRequiredModal(true)}
               className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all inline-flex items-center gap-2"
             >
-              {hasActiveFilters ? 'Clear Filters' : <><Plus className="w-5 h-5" /> Create Event</>}
+              {hasActiveFilters ? t('events.allEvents.clearFilters') : <><Plus className="w-5 h-5" /> {t('events.allEvents.createEvent')}</>}
             </button>
           </div>
         ) : (

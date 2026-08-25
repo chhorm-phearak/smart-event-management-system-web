@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { eventService } from '@/services';
 import { getApiOrigin } from '@/utils';
+import { useLanguage } from '@/context/LanguageContext';
 
 const FALLBACK_EVENT_IMAGE = `data:image/svg+xml;utf8,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400"><rect width="100%" height="100%" fill="#e5e7eb"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#6b7280" font-family="Arial, sans-serif" font-size="28">Event image not available</text></svg>'
@@ -10,11 +11,11 @@ const FALLBACK_EVENT_IMAGE = `data:image/svg+xml;utf8,${encodeURIComponent(
 
 const isValidDate = (date) => date instanceof Date && !Number.isNaN(date.getTime());
 
-const formatTimeFromISO = (isoString) => {
+const formatTimeFromISO = (isoString, locale = 'en-US') => {
   if (!isoString) return '';
   const date = new Date(isoString);
   if (!isValidDate(date)) return '';
-  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: true });
 };
 
 const getEventPayload = (res) => {
@@ -106,6 +107,7 @@ const mapRawToEvent = (raw) => {
 export const MyTicketEventDetailPage = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { t, locale } = useLanguage();
   const [event, setEvent] = useState(null);
   const [qrImage, setQrImage] = useState('');
   const [ticketCode, setTicketCode] = useState('');
@@ -199,7 +201,7 @@ export const MyTicketEventDetailPage = () => {
 
   const handleDownloadQr = async () => {
     if (!qrImage) {
-      toast.error('No QR code available to download.');
+      toast.error(t('tickets.noQrToDownload'));
       return;
     }
 
@@ -263,24 +265,24 @@ export const MyTicketEventDetailPage = () => {
         }
       }
       
-      toast.success('Ticket downloaded successfully!');
+      toast.success(t('tickets.downloaded'));
     } catch (error) {
       console.error('Download error:', error);
-      toast.error('Failed to download ticket. Please try again.');
+      toast.error(t('tickets.downloadFailed'));
     }
   };
 
   const handleCopyTicketCode = async () => {
     if (!ticketCode) {
-      toast.error('No ticket code available to copy.');
+      toast.error(t('tickets.noTicketCodeToCopy'));
       return;
     }
     try {
       await navigator.clipboard.writeText(ticketCode);
-      toast.success('Ticket code copied to clipboard!');
+      toast.success(t('tickets.copied'));
     } catch (error) {
       console.error('Failed to copy ticket code:', error);
-      toast.error('Failed to copy ticket code.');
+      toast.error(t('tickets.copyFailed'));
     }
   };
 
@@ -288,20 +290,20 @@ export const MyTicketEventDetailPage = () => {
     if (!dateString) return '—';
     const date = new Date(dateString);
     if (!isValidDate(date)) return '—';
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    return date.toLocaleDateString(locale, { year: 'numeric', month: '2-digit', day: '2-digit' });
   };
 
   const formatTime = (timeString) => {
     if (!timeString) return '—';
     if (String(timeString).includes('T') || String(timeString).match(/^\d{4}-\d{2}-\d{2}/)) {
-      return formatTimeFromISO(timeString) || '—';
+      return formatTimeFromISO(timeString, locale) || '—';
     }
     const [hours, minutes] = String(timeString).split(':');
     const hour = parseInt(hours, 10);
     if (Number.isNaN(hour)) return '—';
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes || '00'} ${ampm}`;
+    const date = new Date();
+    date.setHours(hour, parseInt(minutes, 10) || 0, 0);
+    return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: true });
   };
 
   const attendancePercentage = event?.capacity ? Math.round((event.registered / event.capacity) * 100) : 0;
@@ -327,12 +329,12 @@ export const MyTicketEventDetailPage = () => {
   if (!event) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500 text-lg">Event not found</p>
+        <p className="text-gray-500 text-lg">{t('tickets.eventNotFound')}</p>
         <button
           onClick={() => navigate('/my-ticket')}
           className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
         >
-          Back to My Tickets
+          {t('tickets.backToMyTickets')}
         </button>
       </div>
     );
@@ -350,12 +352,12 @@ export const MyTicketEventDetailPage = () => {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            <span className="font-medium">My Tickets</span>
+            <span className="font-medium">{t('tickets.myTickets')}</span>
           </button>
           
           <div className="flex items-center gap-3">
             <span className="px-3 py-1.5 bg-green-100 text-green-700 text-xs font-semibold uppercase tracking-wider rounded-full">
-              ✓ Registered
+              {t('tickets.registered')}
             </span>
           </div>
         </div>
@@ -378,7 +380,7 @@ export const MyTicketEventDetailPage = () => {
           {/* Price Badge */}
           <div className="absolute bottom-6 left-6 lg:bottom-auto lg:top-24 lg:left-6">
             <div className="bg-white text-gray-900 px-5 py-2 rounded-full font-bold text-xl shadow-lg">
-              {event.price === 0 ? 'FREE' : `$${event.price}`}
+              {event.price === 0 ? t('tickets.free') : `$${event.price}`}
             </div>
           </div>
         </div>
@@ -388,7 +390,7 @@ export const MyTicketEventDetailPage = () => {
           {/* Category */}
           <div className="flex items-center gap-3 mb-6">
             <span className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-full">
-              {event.category}
+              {t('events.allEvents.categories.' + (event.category?.toLowerCase() || 'other'))}
             </span>
           </div>
 
@@ -411,7 +413,7 @@ export const MyTicketEventDetailPage = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                 </div>
-                <span className="text-gray-500 text-sm font-medium">Date</span>
+                <span className="text-gray-500 text-sm font-medium">{t('tickets.date')}</span>
               </div>
               <p className="text-gray-900 font-semibold">{formatDate(event.eventDate)}</p>
             </div>
@@ -423,7 +425,7 @@ export const MyTicketEventDetailPage = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <span className="text-gray-500 text-sm font-medium">Time</span>
+                <span className="text-gray-500 text-sm font-medium">{t('tickets.time')}</span>
               </div>
               <p className="text-gray-900 font-semibold">{formatTimeRange(event.startTime, event.endTime)}</p>
             </div>
@@ -436,7 +438,7 @@ export const MyTicketEventDetailPage = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
                 </div>
-                <span className="text-gray-500 text-sm font-medium">Location</span>
+                <span className="text-gray-500 text-sm font-medium">{t('tickets.location')}</span>
               </div>
               <p className="text-gray-900 font-semibold">{event.location}</p>
               <p className="text-gray-500 text-sm mt-1">{event.fullAddress}</p>
@@ -446,8 +448,8 @@ export const MyTicketEventDetailPage = () => {
           {/* Capacity Bar */}
           <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 mb-10">
             <div className="flex items-center justify-between mb-4">
-              <span className="text-gray-600 font-medium">Attendance</span>
-              <span className="text-gray-900 font-semibold">{event.registered} / {event.capacity} spots</span>
+              <span className="text-gray-600 font-medium">{t('tickets.attendance')}</span>
+              <span className="text-gray-900 font-semibold">{t('tickets.spots', { registered: event.registered, capacity: event.capacity })}</span>
             </div>
             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
               <div 
@@ -455,7 +457,7 @@ export const MyTicketEventDetailPage = () => {
                 style={{ width: `${attendancePercentage}%` }}
               ></div>
             </div>
-            <p className="text-gray-500 text-sm mt-2">{attendancePercentage}% filled</p>
+            <p className="text-gray-500 text-sm mt-2">{t('tickets.filled', { percentage: attendancePercentage })}</p>
           </div>
 
           {/* CTA Button - View My Ticket */}
@@ -463,7 +465,7 @@ export const MyTicketEventDetailPage = () => {
             onClick={handleShowQrTicket}
             className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white text-lg font-semibold rounded-xl transition-colors"
           >
-            View My Ticket
+            {t('tickets.viewMyTicket')}
           </button>
         </div>
       </div>
@@ -473,7 +475,7 @@ export const MyTicketEventDetailPage = () => {
         <div className="max-w-7xl mx-auto px-6 lg:px-12 py-16">
           {/* About Section */}
           <section className="mb-16">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">About This Event</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">{t('tickets.aboutEvent')}</h2>
             <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
               <p className="text-gray-600 leading-relaxed whitespace-pre-line">{event.description}</p>
             </div>
@@ -482,10 +484,10 @@ export const MyTicketEventDetailPage = () => {
           {/* Schedule Section */}
           <section className="mb-16">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Event Schedule</h2>
+              <h2 className="text-2xl font-bold text-gray-900">{t('tickets.eventSchedule')}</h2>
               {event.agendas && event.agendas.length > 0 && (
                 <span className="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-semibold rounded-full">
-                  {event.agendas.length} {event.agendas.length === 1 ? 'Session' : 'Sessions'}
+                  {event.agendas.length} {event.agendas.length === 1 ? t('tickets.session') : t('tickets.sessions')}
                 </span>
               )}
             </div>
@@ -529,7 +531,7 @@ export const MyTicketEventDetailPage = () => {
                 <svg className="w-12 h-12 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                <p className="text-gray-400 font-medium">No schedule available yet</p>
+                <p className="text-gray-400 font-medium">{t('tickets.noSchedule')}</p>
               </div>
             )}
           </section>
@@ -539,21 +541,21 @@ export const MyTicketEventDetailPage = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Organizer */}
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
-                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-4">Hosted By</h3>
+                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-4">{t('tickets.hostedBy')}</h3>
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-lg">
                     {event.organizer?.charAt(0) || 'O'}
                   </div>
                   <div>
                     <p className="text-gray-900 font-semibold">{event.organizer}</p>
-                    <p className="text-gray-500 text-sm">Organization</p>
+                    <p className="text-gray-500 text-sm">{t('tickets.organization')}</p>
                   </div>
                 </div>
               </div>
 
               {/* Location */}
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
-                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-4">Venue</h3>
+                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-4">{t('tickets.venue')}</h3>
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
                     <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -570,14 +572,14 @@ export const MyTicketEventDetailPage = () => {
 
               {/* Requirements */}
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
-                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-4">Requirements</h3>
+                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-4">{t('tickets.requirements')}</h3>
                 <ul className="space-y-3">
                   {event.registrationRequired && (
                     <li className="flex items-center gap-3 text-gray-600">
                       <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
-                      <span className="text-sm">Registration required</span>
+                      <span className="text-sm">{t('tickets.registrationRequired')}</span>
                     </li>
                   )}
                   {event.qrCodeAvailable && (
@@ -585,7 +587,7 @@ export const MyTicketEventDetailPage = () => {
                       <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
-                      <span className="text-sm">QR code ticket</span>
+                      <span className="text-sm">{t('tickets.qrCodeTicket')}</span>
                     </li>
                   )}
                   {event.bringValidId && (
@@ -593,7 +595,7 @@ export const MyTicketEventDetailPage = () => {
                       <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
-                      <span className="text-sm">Bring valid ID</span>
+                      <span className="text-sm">{t('tickets.bringValidId')}</span>
                     </li>
                   )}
                 </ul>
@@ -617,8 +619,8 @@ export const MyTicketEventDetailPage = () => {
                     </svg>
                   </div>
                   <div>
-                    <h2 className="text-2xl lg:text-3xl font-bold">Your Ticket</h2>
-                    <p className="text-blue-100 text-base">Present this QR code at the event</p>
+                    <h2 className="text-2xl lg:text-3xl font-bold">{t('tickets.yourTicket')}</h2>
+                    <p className="text-blue-100 text-base">{t('tickets.presentQr')}</p>
                   </div>
                 </div>
                 <button
@@ -682,7 +684,7 @@ export const MyTicketEventDetailPage = () => {
                     )}
                   </div>
                   <p className="text-sm text-gray-600 text-center font-medium">
-                    Scan this QR code at the event entrance
+                    {t('tickets.scanQr')}
                   </p>
                 </div>
               </div>
@@ -690,22 +692,22 @@ export const MyTicketEventDetailPage = () => {
               {/* Ticket Code Section */}
               <div className="bg-gray-50 rounded-xl p-5 mb-6">
                 <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
-                  Ticket Code
+                  {t('tickets.ticketCode')}
                 </label>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 px-5 py-4 bg-white border-2 border-gray-300 rounded-lg font-mono font-semibold text-lg text-gray-900 text-center">
-                    {hasTicketCode ? ticketCode : isRegistered ? 'Ticket code unavailable' : 'Not available'}
+                    {hasTicketCode ? ticketCode : isRegistered ? t('tickets.ticketCodeUnavailable') : t('tickets.notAvailable')}
                   </div>
                   <button
                     onClick={handleCopyTicketCode}
                     disabled={!hasTicketCode}
                     className="px-5 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Copy ticket code"
+                    title={t('tickets.copyTitle')}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                     </svg>
-                    <span className="text-sm font-medium">Copy</span>
+                    <span className="text-sm font-medium">{t('tickets.copy')}</span>
                   </button>
                 </div>
               </div>
@@ -718,9 +720,9 @@ export const MyTicketEventDetailPage = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <div>
-                      <p className="text-sm font-semibold text-yellow-900 mb-1">Important</p>
+                      <p className="text-sm font-semibold text-yellow-900 mb-1">{t('tickets.important')}</p>
                       <p className="text-xs text-yellow-800">
-                        Please arrive 15 minutes early. Bring a valid ID for verification.
+                        {t('tickets.importantNotice')}
                       </p>
                     </div>
                   </div>
@@ -733,7 +735,7 @@ export const MyTicketEventDetailPage = () => {
                   onClick={handleCloseQrModal}
                   className="flex-1 px-6 py-4 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold text-base"
                 >
-                  Close
+                  {t('common.close')}
                 </button>
                 <button
                   onClick={handleDownloadQr}
@@ -742,7 +744,7 @@ export const MyTicketEventDetailPage = () => {
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
-                  Download Ticket
+                  {t('tickets.downloadTicket')}
                 </button>
               </div>
             </div>

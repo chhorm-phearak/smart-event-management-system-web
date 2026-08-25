@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useLanguage } from '@/context/LanguageContext';
 import { useQuery } from '@tanstack/react-query';
 import { attendeeService } from '@/services';
 import {
@@ -23,6 +24,7 @@ import {
 
 export const ManageAttendeesPage = () => {
   const navigate = useNavigate();
+  const { t, locale } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -60,7 +62,7 @@ export const ManageAttendeesPage = () => {
     total_pages: 0,
   };
   const errorMessage = isError
-    ? error?.response?.data?.message || error?.message || 'Failed to fetch events'
+    ? error?.response?.data?.message || error?.message || t('attendees.failedToFetchEvents')
     : null;
 
   const handleSelectEvent = (eventId) => {
@@ -88,7 +90,7 @@ export const ManageAttendeesPage = () => {
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
+    return date.toLocaleDateString(locale, {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
@@ -118,8 +120,8 @@ export const ManageAttendeesPage = () => {
                   <QrCode className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2">Manage Attendees</h1>
-                  <p className="text-sm sm:text-base text-gray-500 mb-3 sm:mb-4">Select an event to manage check-ins and scan QR codes</p>
+                  <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2">{t('attendees.manageAttendees')}</h1>
+                  <p className="text-sm sm:text-base text-gray-500 mb-3 sm:mb-4">{t('attendees.selectEventToManage')}</p>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-full text-xs sm:text-sm font-medium">
                       <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
@@ -149,7 +151,7 @@ export const ManageAttendeesPage = () => {
               </div>
             </div>
             <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">{totalRegistered.toLocaleString()}</p>
-            <p className="text-xs sm:text-sm text-gray-500 font-medium">Total Registered</p>
+            <p className="text-xs sm:text-sm text-gray-500 font-medium">{t('attendees.totalRegistered')}</p>
             <div className="mt-3 h-1.5 sm:h-2 bg-blue-100 rounded-full overflow-hidden">
               <div className="h-full bg-blue-500 rounded-full" style={{ width: '100%' }} />
             </div>
@@ -166,7 +168,7 @@ export const ManageAttendeesPage = () => {
               </div>
             </div>
             <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">{totalCheckedIn.toLocaleString()}</p>
-            <p className="text-xs sm:text-sm text-gray-500 font-medium">Checked In</p>
+            <p className="text-xs sm:text-sm text-gray-500 font-medium">{t('attendees.checkedIn')}</p>
             <div className="mt-3 h-1.5 sm:h-2 bg-blue-100 rounded-full overflow-hidden">
               <div 
                 className="h-full bg-blue-500 rounded-full transition-all duration-700 ease-out" 
@@ -182,7 +184,7 @@ export const ManageAttendeesPage = () => {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Search events by name, location, or date..."
+              placeholder={t('attendees.searchEventsPlaceholder')}
               value={searchQuery}
               onChange={handleSearch}
               className="w-full pl-12 pr-4 py-3 sm:py-4 bg-white border border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm sm:text-base placeholder:text-gray-400"
@@ -207,12 +209,12 @@ export const ManageAttendeesPage = () => {
               className="px-4 py-2.5 sm:py-3 bg-white border border-gray-200 rounded-2xl text-gray-600 hover:bg-gray-50 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2 text-sm sm:text-base font-medium"
             >
               <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Refresh</span>
+              <span className="hidden sm:inline">{t('attendees.refresh')}</span>
             </button>
             
             {pagination.total > 0 && (
               <div className="px-4 py-2.5 sm:py-3 bg-white border border-gray-200 rounded-2xl text-sm sm:text-base text-gray-600 font-medium">
-                Showing <span className="font-semibold text-gray-900">{events.length}</span> of <span className="font-semibold text-gray-900">{pagination.total.toLocaleString()}</span>
+                {t('attendees.showing')}<span className="font-semibold text-gray-900">{events.length}</span>{t('attendees.of')}<span className="font-semibold text-gray-900">{pagination.total.toLocaleString()}</span>
               </div>
             )}
           </div>
@@ -225,7 +227,7 @@ export const ManageAttendeesPage = () => {
               <Inbox className="w-4 h-4 text-red-600" />
             </div>
             <div className="flex-1">
-              <p className="text-red-700 text-sm font-semibold mb-1">Unable to load events</p>
+              <p className="text-red-700 text-sm font-semibold mb-1">{t('attendees.unableToLoadEvents')}</p>
               <p className="text-red-600 text-sm">{errorMessage}</p>
             </div>
           </div>
@@ -305,7 +307,7 @@ export const ManageAttendeesPage = () => {
                     {/* Enhanced Check-in Progress */}
                     <div className="bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl p-4 border border-gray-100">
                       <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs sm:text-sm font-semibold text-gray-700">Check-in Progress</span>
+                        <span className="text-xs sm:text-sm font-semibold text-gray-700">{t('attendees.checkInProgress')}</span>
                         <div className="flex items-center gap-1">
                           <span className={`text-xs sm:text-sm font-bold ${
                             checkInRate >= 80 ? 'text-blue-600' : 
@@ -328,13 +330,13 @@ export const ManageAttendeesPage = () => {
                         <div className="flex items-center gap-2">
                           <Users className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
                           <span className="text-gray-600">
-                            <span className="font-semibold text-gray-900">{event.total_registered}</span> registered
+                            <span className="font-semibold text-gray-900">{event.total_registered}</span>{t('attendees.registeredSuffix')}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
                           <UserCheck className="w-3 h-3 sm:w-4 sm:h-4 text-blue-500" />
                           <span className="text-gray-600">
-                            <span className="font-semibold text-blue-600">{event.total_checked_in}</span> checked in
+                            <span className="font-semibold text-blue-600">{event.total_checked_in}</span>{t('attendees.checkedInSuffix')}
                           </span>
                         </div>
                       </div>
@@ -348,7 +350,7 @@ export const ManageAttendeesPage = () => {
             {pagination.total_pages > 1 && (
               <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="text-sm text-gray-600 order-2 sm:order-1">
-                  Page <span className="font-semibold text-gray-900">{currentPage}</span> of <span className="font-semibold text-gray-900">{pagination.total_pages}</span>
+                  {t('attendees.page')}<span className="font-semibold text-gray-900">{currentPage}</span>{t('attendees.of')}<span className="font-semibold text-gray-900">{pagination.total_pages}</span>
                 </div>
                 
                 <div className="flex items-center gap-2 order-1 sm:order-2">
@@ -429,12 +431,12 @@ export const ManageAttendeesPage = () => {
               <Inbox className="w-8 h-8 sm:w-10 sm:h-10 text-blue-500" />
             </div>
             <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3">
-              {searchQuery ? 'No matching events found' : 'No events with attendees yet'}
+              {searchQuery ? t('attendees.noMatchingEvents') : t('attendees.noEventsWithAttendees')}
             </h3>
             <p className="text-sm sm:text-base text-gray-500 max-w-sm mx-auto mb-6">
               {searchQuery 
-                ? 'Try adjusting your search terms or filters to find what you\'re looking for.'
-                : 'Once you create events and people register, they\'ll appear here for management.'
+                ? t('attendees.adjustSearchTerms')
+                : t('attendees.eventsWillAppear')
               }
             </p>
             {searchQuery && (

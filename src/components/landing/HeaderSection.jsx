@@ -1,12 +1,16 @@
 import { Link } from 'react-router-dom';
 import Logo from '@/assets/icons/MPR Smart Event.png';
+import { useLanguage } from '@/context/LanguageContext';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 
 export const HeaderSection = () => {
+  const { t } = useLanguage();
+
   const navLinks = [
-    { label: 'Feature', href: '#features' },
-    { label: 'Pricing', href: '#pricing' },
-    { label: 'Reviews', href: '#testimonials' },
-    { label: 'Login', href: '/login' },
+    { label: t('landing.feature'), href: '#features' },
+    { label: t('landing.pricing'), href: '#pricing' },
+    { label: t('landing.reviews'), href: '#testimonials' },
+    { label: t('landing.login'), href: '/login' },
   ];
 
   return (
@@ -33,11 +37,12 @@ export const HeaderSection = () => {
                 {link.label}
               </a>
             ))}
+            <LanguageSwitcher />
             <Link
               to="/register"
               className="inline-flex items-center px-6 py-3.5 text-base lg:text-lg bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
             >
-              Get Started
+              {t('landing.getStarted')}
             </Link>
           </div>
         </div>

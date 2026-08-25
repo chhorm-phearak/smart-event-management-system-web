@@ -3,14 +3,15 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { eventService } from '@/services';
+import { useLanguage } from '@/context/LanguageContext';
 
 const isValidDate = (date) => date instanceof Date && !Number.isNaN(date.getTime());
 
-const formatTimeFromISO = (isoString) => {
+const formatTimeFromISO = (isoString, locale = 'en-US') => {
   if (!isoString) return '';
   const date = new Date(isoString);
   if (!isValidDate(date)) return '';
-  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: true });
 };
 
 const mapAgenda = (agenda) => {
@@ -21,8 +22,8 @@ const mapAgenda = (agenda) => {
     id: a.id ?? i,
     title: a.title ?? a.name ?? '—',
     description: a.description ?? '',
-    startTime: a.start_time ? formatTimeFromISO(a.start_time) : (a.startTime || ''),
-    endTime: a.end_time ? formatTimeFromISO(a.end_time) : (a.endTime || ''),
+    startTime: a.start_time || a.startTime || '',
+    endTime: a.end_time || a.endTime || '',
     speaker: a.speaker ?? '',
     duration: a.duration ?? 0,
   }));
@@ -99,8 +100,8 @@ const mapRawToEvent = (raw) => {
     description: raw.long_description ?? raw.longDescription ?? raw.short_description ?? raw.shortDescription ?? '',
     category: raw.category ?? 'Other',
     eventDate: raw.start_time ?? raw.startTime,
-    startTime: (raw.start_time ?? raw.startTime) ? formatTimeFromISO(raw.start_time ?? raw.startTime) : '',
-    endTime: (raw.end_time ?? raw.endTime) ? formatTimeFromISO(raw.end_time ?? raw.endTime) : '',
+    startTime: raw.start_time || raw.startTime || '',
+    endTime: raw.end_time || raw.endTime || '',
     duration: raw.duration ?? 0,
     durationFormatted: formatDuration(raw.duration),
     location: raw.location ?? '—',
@@ -133,6 +134,7 @@ export const EventDetailPage = () => {
   const queryClient = useQueryClient();
   const location = useLocation();
   const { id } = useParams();
+  const { t, locale } = useLanguage();
   const fromGroup = location.state?.fromGroup;
   const fromDashboard = location.state?.fromDashboard;
   const fromManageEvents = location.state?.fromManageEvents;
@@ -233,10 +235,10 @@ export const EventDetailPage = () => {
       if (qrTicket) setRegisteredTicketCode(qrTicket);
       queryClient.invalidateQueries({ queryKey: ['event', id] });
       queryClient.invalidateQueries({ queryKey: ['events'] });
-      toast.success('Registered successfully.');
+      toast.success(t('events.detail.registeredSuccessfully'));
     },
     onError: (error) => {
-      const message = error.response?.data?.message || error.response?.data?.error || 'Failed to register event.';
+      const message = error.response?.data?.message || error.response?.data?.error || t('events.detail.failedToRegister');
       toast.error(message);
     },
   });
@@ -266,21 +268,37 @@ export const EventDetailPage = () => {
     if (!dateString) return '—';
     const date = new Date(dateString);
     if (!isValidDate(date)) return '—';
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    return date.toLocaleDateString(locale, { year: 'numeric', month: '2-digit', day: '2-digit' });
   };
 
   const formatTime = (timeString) => {
     if (!timeString) return '—';
-    if (timeString.includes('T') || String(timeString).match(/^\d{4}-\d{2}-\d{2}/)) {
-      const formatted = formatTimeFromISO(timeString);
-      return formatted || '—';
+    const str = String(timeString);
+    if (str.includes('T') || str.match(/^\d{4}-\d{2}-\d{2}/)) {
+      return formatTimeFromISO(str, locale) || '—';
     }
-    const [hours, minutes] = String(timeString).split(':');
-    const hour = parseInt(hours, 10);
-    if (Number.isNaN(hour)) return '—';
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes || '00'} ${ampm}`;
+    const match = str.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s?(AM|PM)?$/i);
+    if (!match) return '—';
+    let hour = parseInt(match[1], 10);
+    const minute = parseInt(match[2], 10);
+    const suffix = match[4];
+    if (suffix) {
+      const upper = suffix.toUpperCase();
+      if (upper === 'PM' && hour < 12) hour += 12;
+      if (upper === 'AM' && hour === 12) hour = 0;
+    }
+    const date = new Date();
+    date.setHours(hour, minute, 0, 0);
+    return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: true });
+  };
+
+  const getDurationLabel = (minutes) => {
+    if (!minutes) return '';
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    if (h === 0) return t('events.detail.durationMinutes', { minutes: m });
+    if (m === 0) return t('events.detail.durationHours', { hours: h });
+    return t('events.detail.durationHoursMinutes', { hours: h, minutes: m });
   };
 
   const formatTimeRange = (start, end) => {
@@ -292,7 +310,7 @@ export const EventDetailPage = () => {
 
   const handleRegister = () => {
     if (!id) {
-      toast.error('Missing event id.');
+      toast.error(t('events.detail.missingEventId'));
       return;
     }
     registerMutation.mutate(id);
@@ -308,7 +326,7 @@ export const EventDetailPage = () => {
 
   const handleDownloadQr = async () => {
     if (!hasQrImage) {
-      toast.error('No QR code available to download.');
+      toast.error(t('events.allEvents.noQr'));
       return;
     }
 
@@ -374,23 +392,23 @@ export const EventDetailPage = () => {
         }
       }
       
-      toast.success('QR code downloaded successfully!');
+      toast.success(t('events.allEvents.qrDownloaded'));
     } catch (error) {
       console.error('Download error:', error);
-      toast.error('Failed to download QR code. Please try again.');
+      toast.error(t('events.allEvents.qrDownloadFailed'));
     }
   };
 
   const handleCopyTicketCode = async () => {
     if (!eventTicketCode) {
-      toast.error('No ticket code available to copy.');
+      toast.error(t('tickets.noTicketCodeToCopy'));
       return;
     }
     try {
       await navigator.clipboard.writeText(eventTicketCode);
-      toast.success('Ticket code copied.');
+      toast.success(t('events.detail.ticketCodeCopied'));
     } catch {
-      toast.error('Failed to copy ticket code.');
+      toast.error(t('tickets.copyFailed'));
     }
   };
 
@@ -421,12 +439,12 @@ export const EventDetailPage = () => {
   if (error || !event) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500 text-lg">{error ? 'Failed to load event.' : 'Event not found'}</p>
+        <p className="text-gray-500 text-lg">{error ? t('events.detail.failedToLoad') : t('tickets.eventNotFound')}</p>
         <button
           onClick={handleBack}
           className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
         >
-          {fromGroup ? 'Back to Group' : 'Back to Events'}
+          {fromGroup ? t('events.detail.backToGroup') : t('events.detail.backToEvents')}
         </button>
       </div>
     );
@@ -444,13 +462,13 @@ export const EventDetailPage = () => {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            <span className="font-medium">{fromGroup ? 'Back to Group' : fromDashboard ? 'Dashboard' : fromManageEvents ? 'Manage Events' : 'All Events'}</span>
+            <span className="font-medium">{fromGroup ? t('events.detail.backToGroup') : fromDashboard ? t('events.detail.dashboard') : fromManageEvents ? t('events.detail.manageEvents') : t('events.detail.allEvents')}</span>
           </button>
           
           <div className="flex items-center gap-3">
             {isRegistered && (
               <span className="px-3 py-1.5 bg-blue-100 text-blue-700 text-xs font-semibold uppercase tracking-wider rounded-full">
-                ✓ Registered
+                {t('tickets.registered')}
               </span>
             )}
           </div>
@@ -476,7 +494,7 @@ export const EventDetailPage = () => {
           {/* Price Badge */}
           <div className="absolute bottom-6 left-6 lg:bottom-auto lg:top-24 lg:left-6">
             <div className="bg-white text-gray-900 px-5 py-2 rounded-full font-bold text-xl shadow-lg">
-              {event.price === 0 ? 'FREE' : `$${event.price}`}
+              {event.price === 0 ? t('tickets.free') : `$${event.price}`}
             </div>
           </div>
         </div>
@@ -486,11 +504,11 @@ export const EventDetailPage = () => {
           {/* Category */}
           <div className="flex items-center gap-3 mb-6">
             <span className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-full">
-              {event.category}
+              {t('events.allEvents.categories.' + (event.category?.toLowerCase() || 'other'))}
             </span>
             {event.isPublic && (
               <span className="px-4 py-2 bg-gray-100 text-gray-600 text-sm font-medium rounded-full">
-                Public Event
+                {t('events.detail.publicEvent')}
               </span>
             )}
           </div>
@@ -514,7 +532,7 @@ export const EventDetailPage = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                 </div>
-                <span className="text-gray-500 text-sm font-medium">Date</span>
+                <span className="text-gray-500 text-sm font-medium">{t('tickets.date')}</span>
               </div>
               <p className="text-gray-900 font-semibold">{formatDate(event.eventDate)}</p>
             </div>
@@ -526,7 +544,7 @@ export const EventDetailPage = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <span className="text-gray-500 text-sm font-medium">Time</span>
+                <span className="text-gray-500 text-sm font-medium">{t('tickets.time')}</span>
               </div>
               <p className="text-gray-900 font-semibold">{formatTimeRange(event.startTime, event.endTime)}</p>
             </div>
@@ -538,9 +556,9 @@ export const EventDetailPage = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <span className="text-gray-500 text-sm font-medium">Duration</span>
+                <span className="text-gray-500 text-sm font-medium">{t('events.detail.duration')}</span>
               </div>
-              <p className="text-gray-900 font-semibold">{event.durationFormatted || `${event.duration} min`}</p>
+              <p className="text-gray-900 font-semibold">{getDurationLabel(event.duration)}</p>
             </div>
 
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
@@ -551,7 +569,7 @@ export const EventDetailPage = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
                 </div>
-                <span className="text-gray-500 text-sm font-medium">Location</span>
+                <span className="text-gray-500 text-sm font-medium">{t('tickets.location')}</span>
               </div>
               <p className="text-gray-900 font-semibold truncate">{event.location}</p>
             </div>
@@ -560,8 +578,8 @@ export const EventDetailPage = () => {
           {/* Capacity Bar */}
           <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 mb-10">
             <div className="flex items-center justify-between mb-4">
-              <span className="text-gray-600 font-medium">Attendance</span>
-              <span className="text-gray-900 font-semibold">{event.registered} / {event.capacity} spots</span>
+              <span className="text-gray-600 font-medium">{t('tickets.attendance')}</span>
+              <span className="text-gray-900 font-semibold">{t('tickets.spots', { registered: event.registered, capacity: event.capacity })}</span>
             </div>
             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
               <div 
@@ -569,7 +587,7 @@ export const EventDetailPage = () => {
                 style={{ width: `${attendancePercentage}%` }}
               ></div>
             </div>
-            <p className="text-gray-500 text-sm mt-2">{attendancePercentage}% filled</p>
+            <p className="text-gray-500 text-sm mt-2">{t('tickets.filled', { percentage: attendancePercentage })}</p>
           </div>
 
           {/* CTA Button */}
@@ -579,14 +597,14 @@ export const EventDetailPage = () => {
               disabled={registerMutation.isPending}
               className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white text-lg font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {registerMutation.isPending ? 'Processing...' : 'Register Now'}
+              {registerMutation.isPending ? t('events.detail.processing') : t('events.detail.registerNow')}
             </button>
           ) : (
             <button
               onClick={handleShowQrTicket}
               className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white text-lg font-semibold rounded-xl transition-colors"
             >
-              View My Ticket
+              {t('tickets.viewMyTicket')}
             </button>
           )}
         </div>
@@ -597,7 +615,7 @@ export const EventDetailPage = () => {
         <div className="max-w-7xl mx-auto px-6 lg:px-12 py-16">
           {/* About Section */}
           <section className="mb-16">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">About This Event</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">{t('tickets.aboutEvent')}</h2>
             <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
               <p className="text-gray-600 leading-relaxed whitespace-pre-line">{event.description}</p>
             </div>
@@ -606,10 +624,10 @@ export const EventDetailPage = () => {
           {/* Schedule Section */}
           <section className="mb-16">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Event Schedule</h2>
+              <h2 className="text-2xl font-bold text-gray-900">{t('tickets.eventSchedule')}</h2>
               {event.agendas && event.agendas.length > 0 && (
                 <span className="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-semibold rounded-full">
-                  {event.agendas.length} {event.agendas.length === 1 ? 'Session' : 'Sessions'}
+                  {event.agendas.length} {event.agendas.length === 1 ? t('tickets.session') : t('tickets.sessions')}
                 </span>
               )}
             </div>
@@ -628,7 +646,7 @@ export const EventDetailPage = () => {
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-3 mb-2">
                           <span className="px-3 py-1 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg">
-                            {agenda.startTime || '—'} - {agenda.endTime || '—'}
+                            {formatTime(agenda.startTime)} - {formatTime(agenda.endTime)}
                           </span>
                           {agenda.duration > 0 && (
                             <span className="px-3 py-1 bg-gray-50 text-gray-500 text-xs font-medium rounded-lg">
@@ -658,14 +676,14 @@ export const EventDetailPage = () => {
                 <svg className="w-12 h-12 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                <p className="text-gray-400 font-medium">No schedule available yet</p>
+                <p className="text-gray-400 font-medium">{t('tickets.noSchedule')}</p>
               </div>
             )}
           </section>
 
           {/* Team Section */}
           <section className="mb-16">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Event Team</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">{t('events.detail.eventTeam')}</h2>
             
             {event.staff && event.staff.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -695,7 +713,7 @@ export const EventDetailPage = () => {
                 <svg className="w-12 h-12 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
-                <p className="text-gray-400 font-medium">No team members assigned</p>
+                <p className="text-gray-400 font-medium">{t('events.detail.noTeamMembers')}</p>
               </div>
             )}
           </section>
@@ -705,26 +723,26 @@ export const EventDetailPage = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Organizer */}
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
-                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-4">Hosted By</h3>
+                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-4">{t('tickets.hostedBy')}</h3>
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-lg">
                     {event.organizer?.charAt(0) || 'O'}
                   </div>
                   <div>
                     <p className="text-gray-900 font-semibold">{event.organizer}</p>
-                    <p className="text-gray-500 text-sm">Organization</p>
+                    <p className="text-gray-500 text-sm">{t('tickets.organization')}</p>
                   </div>
                 </div>
                 {event.groupName && (
                   <div className="mt-4 pt-4 border-t border-gray-200">
-                    <p className="text-gray-500 text-sm">Group: <span className="text-gray-900 font-medium">{event.groupName}</span></p>
+                    <p className="text-gray-500 text-sm">{t('events.detail.group')} <span className="text-gray-900 font-medium">{event.groupName}</span></p>
                   </div>
                 )}
               </div>
 
               {/* Location */}
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
-                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-4">Venue</h3>
+                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-4">{t('tickets.venue')}</h3>
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
                     <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -741,14 +759,14 @@ export const EventDetailPage = () => {
 
               {/* Requirements */}
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
-                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-4">Requirements</h3>
+                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-4">{t('tickets.requirements')}</h3>
                 <ul className="space-y-3">
                   {event.registrationRequired && (
                     <li className="flex items-center gap-3 text-gray-600">
                       <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
-                      <span className="text-sm">Registration required</span>
+                      <span className="text-sm">{t('tickets.registrationRequired')}</span>
                     </li>
                   )}
                   {event.qrCodeAvailable && (
@@ -756,7 +774,7 @@ export const EventDetailPage = () => {
                       <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
-                      <span className="text-sm">QR code ticket</span>
+                      <span className="text-sm">{t('tickets.qrCodeTicket')}</span>
                     </li>
                   )}
                   {event.bringValidId && (
@@ -764,7 +782,7 @@ export const EventDetailPage = () => {
                       <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
-                      <span className="text-sm">Bring valid ID</span>
+                      <span className="text-sm">{t('tickets.bringValidId')}</span>
                     </li>
                   )}
                 </ul>
@@ -788,8 +806,8 @@ export const EventDetailPage = () => {
                     </svg>
                   </div>
                   <div>
-                    <h2 className="text-2xl lg:text-3xl font-bold">Your Ticket</h2>
-                    <p className="text-blue-100 text-base">Present this QR code at the event</p>
+                    <h2 className="text-2xl lg:text-3xl font-bold">{t('tickets.yourTicket')}</h2>
+                    <p className="text-blue-100 text-base">{t('tickets.presentQr')}</p>
                   </div>
                 </div>
                 <button
@@ -853,7 +871,7 @@ export const EventDetailPage = () => {
                     )}
                   </div>
                   <p className="text-sm text-gray-600 text-center font-medium">
-                    Scan this QR code at the event entrance
+                    {t('tickets.scanQr')}
                   </p>
                 </div>
               </div>
@@ -861,22 +879,22 @@ export const EventDetailPage = () => {
               {/* Ticket Code Section */}
               <div className="bg-gray-50 rounded-xl p-5 mb-6">
                 <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
-                  Ticket Code
+                  {t('tickets.ticketCode')}
                 </label>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 px-5 py-4 bg-white border-2 border-gray-300 rounded-lg font-mono font-semibold text-lg text-gray-900 text-center">
-                    {hasTicketCode ? eventTicketCode : 'N/A'}
+                    {hasTicketCode ? eventTicketCode : t('tickets.notAvailable')}
                   </div>
                   <button
                     onClick={handleCopyTicketCode}
                     disabled={!hasTicketCode}
                     className="px-5 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Copy ticket code"
+                    title={t('tickets.copyTitle')}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                     </svg>
-                    <span className="text-sm font-medium">Copy</span>
+                    <span className="text-sm font-medium">{t('tickets.copy')}</span>
                   </button>
                 </div>
               </div>
@@ -888,7 +906,7 @@ export const EventDetailPage = () => {
                   onClick={handleCloseQrModal}
                   className="flex-1 px-6 py-4 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold text-base"
                 >
-                  Close
+                  {t('common.close')}
                 </button>
                 <button
                   onClick={handleDownloadQr}
@@ -897,7 +915,7 @@ export const EventDetailPage = () => {
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
-                  Download Ticket
+                  {t('tickets.downloadTicket')}
                 </button>
               </div>
             </div>

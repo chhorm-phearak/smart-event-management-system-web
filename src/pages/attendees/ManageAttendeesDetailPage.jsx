@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useLanguage } from '@/context/LanguageContext';
 import { Html5Qrcode } from 'html5-qrcode';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -11,6 +12,7 @@ const FILE_SCANNER_ID = 'qr-file-scanner';
 export const ManageAttendeesDetailPage = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { t, locale } = useLanguage();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('all');
@@ -89,13 +91,13 @@ export const ManageAttendeesDetailPage = () => {
 
   const isInitialLoading = isLoading && !data;
   const queryErrorMessage = isError
-    ? error?.response?.data?.message || error?.message || 'Failed to fetch attendees'
+    ? error?.response?.data?.message || error?.message || t('attendees.failedToFetchAttendees')
     : null;
 
   const formatDateTime = (isoString) => {
     if (!isoString) return '—';
     const date = new Date(isoString);
-    return date.toLocaleString('en-US', {
+    return date.toLocaleString(locale, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -105,8 +107,10 @@ export const ManageAttendeesDetailPage = () => {
   };
 
   const renderStatusLabel = (status) => {
-    if (!status) return 'Unknown';
-    return status.replace(/_/g, ' ').toLowerCase().replace(/(^|\s)\w/g, (match) => match.toUpperCase());
+    if (!status) return t('attendees.unknown');
+    const key = 'attendees.status.' + status.toLowerCase();
+    const translated = t(key);
+    return translated !== key ? translated : status;
   };
 
   const extractTicketInfo = (rawValue) => {
@@ -181,7 +185,7 @@ export const ManageAttendeesDetailPage = () => {
       
       const qrReaderElement = document.getElementById("qr-reader");
       if (!qrReaderElement) {
-        throw new Error('Scanner container not found. Please try again.');
+        throw new Error(t('attendees.scannerContainerNotFound'));
       }
 
       const html5QrCode = new Html5Qrcode("qr-reader");
@@ -253,25 +257,25 @@ export const ManageAttendeesDetailPage = () => {
             }
           );
         } catch (userCameraErr) {
-          throw new Error('Unable to access any camera. Please check permissions and ensure no other application is using the camera.');
+          throw new Error(t('attendees.unableToAccessCamera'));
         }
       }
     } catch (err) {
       console.error('Error starting scanner:', err);
-      let errorMessage = 'Failed to start camera. ';
+      let errorMessage = t('attendees.failedToStartCamera') + ' ';
       
       if (err.message) {
         if (err.message.includes('Permission')) {
-          errorMessage += 'Please grant camera permissions in your browser settings.';
+          errorMessage += t('attendees.grantCameraPermission');
         } else if (err.message.includes('NotFoundError') || err.message.includes('NotReadableError')) {
-          errorMessage += 'No camera found or camera is being used by another application.';
+          errorMessage += t('attendees.noCameraFound');
         } else if (err.message.includes('NotAllowedError')) {
-          errorMessage += 'Camera access denied. Please allow camera access and try again.';
+          errorMessage += t('attendees.cameraAccessDenied');
         } else {
           errorMessage += err.message;
         }
       } else {
-        errorMessage += 'Please ensure camera permissions are granted and try again.';
+        errorMessage += t('attendees.ensureCameraPermission');
       }
       
       setScannerError(errorMessage);
@@ -307,10 +311,10 @@ export const ManageAttendeesDetailPage = () => {
   const checkInMutation = useMutation({
     mutationFn: ({ qrTicketId }) => attendeeService.checkInAttendee(qrTicketId),
     onSuccess: (response) => {
-      const message = response?.message || 'Check-in successful';
+      const message = response?.message || t('attendees.checkInSuccessful');
       const normalizedMessage = message.toLowerCase();
       const alreadyChecked = normalizedMessage.includes('already checked in');
-      const toastMessage = alreadyChecked ? 'You are already checked in' : message;
+      const toastMessage = alreadyChecked ? t('attendees.alreadyCheckedIn') : message;
 
       if (alreadyChecked) {
         toast.error(toastMessage);
@@ -342,7 +346,7 @@ export const ManageAttendeesDetailPage = () => {
     },
     onError: (mutationError) => {
       const message =
-        mutationError?.response?.data?.message || mutationError?.message || 'Failed to check in attendee';
+        mutationError?.response?.data?.message || mutationError?.message || t('attendees.failedToCheckIn');
       toast.error(message);
       setQrAlertData((prev) => ({
         ...(prev || {}),
@@ -354,10 +358,10 @@ export const ManageAttendeesDetailPage = () => {
 
   const checkInWithQrTicketId = (qrTicketId, metadata) => {
     if (!qrTicketId) {
-      toast.error('QR ticket identifier is missing.');
+      toast.error(t('attendees.qrTicketMissing'));
       setQrAlertData((prev) => ({
         ...(prev || {}),
-        message: 'QR ticket identifier is missing.',
+        message: t('attendees.qrTicketMissing'),
         error: true,
       }));
       return;
@@ -374,7 +378,7 @@ export const ManageAttendeesDetailPage = () => {
 
   const handleDecodedQRCode = (decodedText, decodedResult = {}) => {
     if (!decodedText) {
-      toast.error('QR code was empty.');
+      toast.error(t('attendees.qrCodeEmpty'));
       return;
     }
 
@@ -396,7 +400,7 @@ export const ManageAttendeesDetailPage = () => {
       };
 
       if (!ticketInfo.qrTicketId) {
-        throw new Error('QR ticket identifier is missing.');
+        throw new Error(t('attendees.qrTicketMissing'));
       }
 
       checkInWithQrTicketId(ticketInfo.qrTicketId, metadata);
@@ -404,8 +408,8 @@ export const ManageAttendeesDetailPage = () => {
       console.error('Failed to parse QR data:', err);
       const message =
         err instanceof SyntaxError
-          ? 'QR code does not contain valid JSON data.'
-          : err.message || 'Invalid QR code data.';
+          ? t('attendees.qrInvalidJson')
+          : err.message || t('attendees.invalidQrData');
       toast.error(message);
       setQrAlertData((prev) => ({
         ...(prev || {}),
@@ -447,7 +451,7 @@ export const ManageAttendeesDetailPage = () => {
       setShowScanner(false);
     } catch (err) {
       console.error('Image QR scan error:', err);
-      toast.error('Unable to read QR code from the selected image.');
+      toast.error(t('attendees.qrReadImageError'));
     } finally {
       setScanning(false);
       if (fileInputRef.current) {
@@ -458,7 +462,7 @@ export const ManageAttendeesDetailPage = () => {
 
   const handleManualCheckIn = () => {
     if (!ticketCode.trim()) {
-      toast.error('Please enter QR data to check in.');
+      toast.error(t('attendees.enterQrData'));
       return;
     }
 
@@ -466,7 +470,7 @@ export const ManageAttendeesDetailPage = () => {
       const ticketInfo = extractTicketInfo(ticketCode);
 
       if (!ticketInfo.qrTicketId) {
-        throw new Error('QR ticket identifier is missing.');
+        throw new Error(t('attendees.qrTicketMissing'));
       }
 
       const metadata = {
@@ -481,8 +485,8 @@ export const ManageAttendeesDetailPage = () => {
     } catch (err) {
       const message =
         err instanceof SyntaxError
-          ? 'Manual input must contain a QR ticket identifier or valid JSON with a supported identifier.'
-          : err.message || 'Invalid manual QR data.';
+          ? t('attendees.manualInputInvalid')
+          : err.message || t('attendees.invalidManualQr');
       toast.error(message);
       setQrAlertData({
         text: ticketCode,
@@ -507,22 +511,22 @@ export const ManageAttendeesDetailPage = () => {
     mutationFn: (registrationId) =>
       attendeeService.deleteAttendee(registrationId),
     onSuccess: () => {
-      toast.success('Attendee removed');
+      toast.success(t('attendees.attendeeRemoved'));
       refetch();
     },
     onError: (mutationError) => {
       const message =
-        mutationError?.response?.data?.message || mutationError?.message || 'Failed to delete attendee';
+        mutationError?.response?.data?.message || mutationError?.message || t('attendees.failedToDelete');
       toast.error(message);
     },
   });
 
   const handleDeleteAttendee = (registrationId) => {
-    if (!window.confirm('Remove this attendee from the event?')) {
+    if (!window.confirm(t('attendees.removeConfirm'))) {
       return;
     }
     if (!registrationId) {
-      toast.error('Invalid attendee information');
+      toast.error(t('attendees.invalidAttendeeInfo'));
       return;
     }
     deleteMutation.mutate(registrationId);
@@ -530,19 +534,19 @@ export const ManageAttendeesDetailPage = () => {
 
   const handleDownloadExcel = useCallback(() => {
     if (!filteredAttendees.length) {
-      toast.error('No attendees to export');
+      toast.error(t('attendees.noAttendeesToExport'));
       return;
     }
 
     try {
       const excelData = filteredAttendees.map((attendee, index) => ({
-        'No.': index + 1,
-        'Name': attendee.name || '—',
-        'Email': attendee.email || '—',
-        'Contact': attendee.contact || '—',
-        'Registered At': formatDateTime(attendee.registered_at),
-        'Status': renderStatusLabel(attendee.status),
-        'Ticket ID': attendee.registration_id || '—',
+        [t('attendees.export.no')]: index + 1,
+        [t('attendees.export.name')]: attendee.name || '—',
+        [t('attendees.export.email')]: attendee.email || '—',
+        [t('attendees.export.contact')]: attendee.contact || '—',
+        [t('attendees.export.registeredAt')]: formatDateTime(attendee.registered_at),
+        [t('attendees.export.status')]: renderStatusLabel(attendee.status),
+        [t('attendees.export.ticketId')]: attendee.registration_id || '—',
       }));
 
       const worksheet = XLSX.utils.json_to_sheet(excelData);
@@ -559,16 +563,16 @@ export const ManageAttendeesDetailPage = () => {
       worksheet['!cols'] = colWidths;
 
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendees');
+      XLSX.utils.book_append_sheet(workbook, worksheet, t('attendees.export.sheetName'));
 
       const eventName = eventInfo.title?.replace(/[^a-zA-Z0-9]/g, '_') || 'Event';
       const fileName = `${eventName}_Attendees_${new Date().toISOString().split('T')[0]}.xlsx`;
 
       XLSX.writeFile(workbook, fileName);
-      toast.success('Excel file downloaded successfully');
+      toast.success(t('attendees.excelDownloadSuccess'));
     } catch (err) {
       console.error('Error exporting Excel:', err);
-      toast.error('Failed to export Excel file');
+      toast.error(t('attendees.exportExcelFailed'));
     }
   }, [filteredAttendees, eventInfo.title]);
 
@@ -594,7 +598,7 @@ export const ManageAttendeesDetailPage = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
               </div>
-              <h1 className="text-2xl font-bold">Attendees Management</h1>
+              <h1 className="text-2xl font-bold">{t('attendees.attendeesManagement')}</h1>
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-blue-100">
               <span className="font-medium text-white">{eventInfo.title || '—'}</span>
@@ -624,7 +628,7 @@ export const ManageAttendeesDetailPage = () => {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            <span>Back to Events</span>
+            <span>{t('attendees.backToEvents')}</span>
           </button>
         </div>
       </div>
@@ -646,13 +650,13 @@ export const ManageAttendeesDetailPage = () => {
               </svg>
             </div>
             <div className="px-3 py-1 bg-blue-200 rounded-full">
-              <span className="text-xs font-semibold text-blue-800">Total</span>
+              <span className="text-xs font-semibold text-blue-800">{t('attendees.total')}</span>
             </div>
           </div>
           <div>
-            <p className="text-sm font-medium text-blue-700 mb-1">Total Attendees</p>
+            <p className="text-sm font-medium text-blue-700 mb-1">{t('attendees.totalAttendees')}</p>
             <p className="text-4xl font-bold text-blue-900">{totalAttendees}</p>
-            <p className="text-xs text-blue-600 mt-2">All registered participants</p>
+            <p className="text-xs text-blue-600 mt-2">{t('attendees.allRegisteredParticipants')}</p>
           </div>
         </div>
 
@@ -671,9 +675,9 @@ export const ManageAttendeesDetailPage = () => {
             </div>
           </div>
           <div>
-            <p className="text-sm font-medium text-green-700 mb-1">Checked In</p>
+            <p className="text-sm font-medium text-green-700 mb-1">{t('attendees.checkedIn')}</p>
             <p className="text-4xl font-bold text-green-900">{checkedInAttendees}</p>
-            <p className="text-xs text-green-600 mt-2">Successfully verified</p>
+            <p className="text-xs text-green-600 mt-2">{t('attendees.successfullyVerified')}</p>
           </div>
         </div>
 
@@ -686,13 +690,13 @@ export const ManageAttendeesDetailPage = () => {
               </svg>
             </div>
             <div className="px-3 py-1 bg-orange-200 rounded-full">
-              <span className="text-xs font-semibold text-orange-800">Pending</span>
+              <span className="text-xs font-semibold text-orange-800">{t('attendees.pending')}</span>
             </div>
           </div>
           <div>
-            <p className="text-sm font-medium text-orange-700 mb-1">Not yet Checked In</p>
+            <p className="text-sm font-medium text-orange-700 mb-1">{t('attendees.notYetCheckedIn')}</p>
             <p className="text-4xl font-bold text-orange-900">{notCheckedInAttendees}</p>
-            <p className="text-xs text-orange-600 mt-2">Awaiting verification</p>
+            <p className="text-xs text-orange-600 mt-2">{t('attendees.awaitingVerification')}</p>
           </div>
         </div>
       </div>
@@ -705,7 +709,7 @@ export const ManageAttendeesDetailPage = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 0h.01M12 12v4m0 4h.01M12 12h.01M5 19h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
             </svg>
           </div>
-          <h2 className="text-xl font-bold text-gray-900">QR Code Scanner</h2>
+          <h2 className="text-xl font-bold text-gray-900">{t('attendees.qrCodeScanner')}</h2>
         </div>
         
         <div className="max-w-2xl mx-auto">
@@ -753,15 +757,15 @@ export const ManageAttendeesDetailPage = () => {
                     </div>
                   </div>
                   <div className="flex-1">
-                    <p className="text-red-800 font-bold text-lg mb-2">Camera Access Error</p>
+                    <p className="text-red-800 font-bold text-lg mb-2">{t('attendees.cameraAccessError')}</p>
                     <p className="text-red-700 text-sm mb-4">{scannerError}</p>
                     <div className="bg-white rounded-lg p-4 mb-4">
-                      <p className="text-sm font-semibold text-gray-800 mb-2">Troubleshooting steps:</p>
+                      <p className="text-sm font-semibold text-gray-800 mb-2">{t('attendees.troubleshootingSteps')}</p>
                       <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
-                        <li>Check if your browser has camera permissions enabled</li>
-                        <li>Ensure no other application is using the camera</li>
-                        <li>Try refreshing the page and granting permissions again</li>
-                        <li>Make sure you're using HTTPS (required for camera access)</li>
+                        <li>{t('attendees.checkCameraPermissions')}</li>
+                        <li>{t('attendees.noOtherAppCamera')}</li>
+                        <li>{t('attendees.refreshGrantPermissions')}</li>
+                        <li>{t('attendees.useHttps')}</li>
                       </ul>
                     </div>
                     <div className="flex gap-3">
@@ -804,8 +808,8 @@ export const ManageAttendeesDetailPage = () => {
                       </svg>
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-white">QR Code Scanner</h3>
-                      <p className="text-gray-400 text-sm">Position the QR code within the frame</p>
+                      <h3 className="text-xl font-bold text-white">{t('attendees.qrCodeScanner')}</h3>
+                      <p className="text-gray-400 text-sm">{t('attendees.positionQrInFrame')}</p>
                     </div>
                   </div>
                   <button
@@ -837,8 +841,8 @@ export const ManageAttendeesDetailPage = () => {
                     
                     {/* Instructions */}
                     <div className="absolute bottom-4 left-0 right-0 text-center px-4">
-                      <p className="text-white text-lg font-semibold mb-1">Position QR code in frame</p>
-                      <p className="text-gray-300 text-sm">Camera is active and scanning</p>
+                      <p className="text-white text-lg font-semibold mb-1">{t('attendees.positionQrCode')}</p>
+                      <p className="text-gray-300 text-sm">{t('attendees.cameraActiveScanning')}</p>
                     </div>
                   </div>
                 </div>
@@ -848,7 +852,7 @@ export const ManageAttendeesDetailPage = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-green-400">
                       <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                      <span className="text-sm font-medium">Camera active - scanning...</span>
+                      <span className="text-sm font-medium">{t('attendees.cameraActiveScanningShort')}</span>
                     </div>
                     <button
                       onClick={stopScanner}
@@ -871,7 +875,7 @@ export const ManageAttendeesDetailPage = () => {
               <div className="w-full border-t border-gray-300"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white text-gray-500">OR</span>
+              <span className="px-4 bg-white text-gray-500">{t('attendees.or')}</span>
             </div>
           </div>
 
@@ -891,7 +895,7 @@ export const ManageAttendeesDetailPage = () => {
                   type="text"
                   value={ticketCode}
                   onChange={(e) => setTicketCode(e.target.value)}
-                  placeholder="Enter ticket code (e.g., TICKET-ABC123)"
+                  placeholder={t('attendees.ticketCodePlaceholder')}
                   className="block w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   onKeyPress={(e) => e.key === 'Enter' && handleManualCheckIn()}
                 />
@@ -910,7 +914,7 @@ export const ManageAttendeesDetailPage = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 )}
-                {checkInMutation.isPending ? 'Processing...' : 'Check In'}
+                {checkInMutation.isPending ? t('attendees.processing') : t('attendees.checkIn')}
               </button>
             </div>
           </div>
@@ -923,9 +927,9 @@ export const ManageAttendeesDetailPage = () => {
         <div className="px-6 py-5 border-b border-gray-200 bg-gray-50/50">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Attendee List</h2>
+              <h2 className="text-xl font-bold text-gray-900">{t('attendees.attendeeList')}</h2>
               <p className="text-gray-500 text-sm mt-1">
-                {filteredAttendees.length} {filteredAttendees.length === 1 ? 'attendee' : 'attendees'} found
+                {t('attendees.found', { count: filteredAttendees.length })}
               </p>
             </div>
             
@@ -939,7 +943,7 @@ export const ManageAttendeesDetailPage = () => {
                 </div>
                 <input
                   type="text"
-                  placeholder="Search by name, email..."
+                  placeholder={t('attendees.searchByNameEmail')}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="block w-full sm:w-56 pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
@@ -951,7 +955,7 @@ export const ManageAttendeesDetailPage = () => {
                 onChange={(e) => setSelectedStatus(e.target.value)}
                 className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
               >
-                <option value="all">All Status</option>
+                <option value="all">{t('attendees.allStatus')}</option>
                 {statusOptions
                   .filter((status) => status !== 'all')
                   .map((status) => (
@@ -980,12 +984,12 @@ export const ManageAttendeesDetailPage = () => {
           <table className="min-w-full">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Attendee</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Contact</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Registered</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Ticket ID</th>
-                <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{t('attendees.attendee')}</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{t('attendees.contact')}</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{t('attendees.registeredHeader')}</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{t('attendees.statusHeader')}</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{t('attendees.ticketId')}</th>
+                <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">{t('attendees.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -1069,7 +1073,7 @@ export const ManageAttendeesDetailPage = () => {
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
-                        {deleteMutation.isPending ? 'Removing...' : 'Remove'}
+                        {deleteMutation.isPending ? t('attendees.removing') : t('attendees.remove')}
                       </button>
                     </td>
                   </tr>
@@ -1084,10 +1088,10 @@ export const ManageAttendeesDetailPage = () => {
                         </svg>
                       </div>
                       <p className="text-gray-500 font-medium">
-                        {isFetching ? 'Loading attendees...' : 'No attendees found'}
+                        {isFetching ? t('attendees.loadingAttendees') : t('attendees.noAttendeesFound')}
                       </p>
                       <p className="text-gray-400 text-sm mt-1">
-                        {!isFetching && searchTerm ? 'Try adjusting your search' : ''}
+                        {!isFetching && searchTerm ? t('attendees.tryAdjustingSearch') : ''}
                       </p>
                     </div>
                   </td>

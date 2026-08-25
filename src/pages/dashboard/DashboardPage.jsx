@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { organizationService } from '@/services';
 import {
   Calendar,
@@ -21,6 +22,7 @@ import {
 export const DashboardPage = () => {
   const navigate = useNavigate();
   const { user, isLoading: authLoading } = useAuth();
+  const { t, locale } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalEvents: 0,
@@ -46,13 +48,13 @@ export const DashboardPage = () => {
 
   const formatEventDate = (isoString) => {
     if (!isoString) return '';
-    return new Date(isoString).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' });
+    return new Date(isoString).toLocaleDateString(locale, { year: 'numeric', month: 'short', day: '2-digit' });
   };
 
   const formatEventTime = (isoString) => {
     if (!isoString) return '';
     const date = new Date(isoString);
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: true });
   };
 
   const fetchDashboardData = async () => {
@@ -124,15 +126,7 @@ export const DashboardPage = () => {
     if (user?.email) {
       return user.email.split('@')[0].toUpperCase();
     }
-    return 'ORGANIZER';
-  };
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
+    return t('user.organizer');
   };
 
   return (
@@ -144,27 +138,27 @@ export const DashboardPage = () => {
           <div className="absolute inset-0 bg-grid-white/10" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'30\' height=\'30\' viewBox=\'0 0 30 30\' fill=\'none\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M1.5 0V30M0 1.5H30\' stroke=\'white\' stroke-opacity=\'0.1\'/%3E%3C/svg%3E")' }} />
           <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-6">
             <div className="text-white">
-              <p className="text-blue-200 text-sm font-medium mb-2">Dashboard Overview</p>
+              <p className="text-blue-200 text-sm font-medium mb-2">{t('dashboard.overview')}</p>
               <h1 className="text-3xl md:text-4xl font-bold mb-2">
-                Welcome back, {getUserDisplayName()}!
+                {t('dashboard.welcomeBack', { name: getUserDisplayName() })}
               </h1>
               <p className="text-blue-100 max-w-md">
-                Here's what's happening with your events today. Keep up the great work!
+                {t('dashboard.welcomeSub')}
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
               <button
                 onClick={() => navigate('/create-event')}
-                className="px-6 py-3 bg-white text-blue-600 font-semibold rounded-xl hover:bg-blue-50 transition-all flex items-center gap-2 shadow-lg"
+                className="px-6 py-3 bg-white text-blue-600 font-semibold rounded-xl hover:bg-blue-50 transition-all flex items-center justify-center gap-2 shadow-lg w-full sm:w-auto"
               >
                 <Plus className="w-5 h-5" />
-                Create Event
+                {t('dashboard.createEvent')}
               </button>
               <button
                 onClick={() => navigate('/manage-events')}
-                className="px-6 py-3 bg-white/20 text-white font-semibold rounded-xl hover:bg-white/30 transition-all backdrop-blur-sm"
+                className="px-6 py-3 bg-white/20 text-white font-semibold rounded-xl hover:bg-white/30 transition-all backdrop-blur-sm w-full sm:w-auto"
               >
-                Manage All
+                {t('dashboard.manageAll')}
               </button>
             </div>
           </div>
@@ -180,15 +174,15 @@ export const DashboardPage = () => {
               </div>
               <div className="flex items-center gap-1 text-emerald-600 text-sm font-medium">
                 <TrendingUp className="w-4 h-4" />
-                <span>Active</span>
+                <span>{t('dashboard.active')}</span>
               </div>
             </div>
             <p className="text-3xl font-bold text-gray-900 mb-1">{stats.totalEvents}</p>
-            <p className="text-gray-500">Total Events</p>
+            <p className="text-gray-500">{t('dashboard.totalEvents')}</p>
             <div className="mt-4 pt-4 border-t border-gray-100">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-400">All time</span>
-                <span className="text-blue-600 font-medium cursor-pointer hover:underline" onClick={() => navigate('/manage-events')}>View all →</span>
+                <span className="text-gray-400">{t('dashboard.allTime')}</span>
+                <span className="text-blue-600 font-medium cursor-pointer hover:underline" onClick={() => navigate('/manage-events')}>{t('dashboard.viewAll')}</span>
               </div>
             </div>
           </div>
@@ -199,10 +193,10 @@ export const DashboardPage = () => {
               <div className="p-3 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl shadow-lg shadow-emerald-500/30 group-hover:scale-110 transition-transform">
                 <TrendingUp className="w-6 h-6 text-white" />
               </div>
-              <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full">Live</span>
+              <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full">{t('dashboard.live')}</span>
             </div>
             <p className="text-3xl font-bold text-gray-900 mb-1">{stats.upcomingEvents}</p>
-            <p className="text-gray-500">Upcoming Events</p>
+            <p className="text-gray-500">{t('dashboard.upcomingEvents')}</p>
             <div className="mt-4 pt-4 border-t border-gray-100">
               <div className="w-full bg-gray-100 rounded-full h-2">
                 <div 
@@ -219,10 +213,10 @@ export const DashboardPage = () => {
               <div className="p-3 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl shadow-lg shadow-orange-500/30 group-hover:scale-110 transition-transform">
                 <History className="w-6 h-6 text-white" />
               </div>
-              <span className="px-2.5 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">Done</span>
+              <span className="px-2.5 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">{t('dashboard.done')}</span>
             </div>
             <p className="text-3xl font-bold text-gray-900 mb-1">{stats.pastEvents}</p>
-            <p className="text-gray-500">Completed Events</p>
+            <p className="text-gray-500">{t('dashboard.completedEvents')}</p>
             <div className="mt-4 pt-4 border-t border-gray-100">
               <div className="w-full bg-gray-100 rounded-full h-2">
                 <div 
@@ -241,14 +235,14 @@ export const DashboardPage = () => {
               </div>
               <div className="flex items-center gap-1 text-violet-600 text-sm font-medium">
                 <Sparkles className="w-4 h-4" />
-                <span>Growing</span>
+                <span>{t('dashboard.growing')}</span>
               </div>
             </div>
             <p className="text-3xl font-bold text-gray-900 mb-1">{stats.totalAttendees}</p>
-            <p className="text-gray-500">Total Attendees</p>
+            <p className="text-gray-500">{t('dashboard.totalAttendees')}</p>
             <div className="mt-4 pt-4 border-t border-gray-100">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-400">Avg per event</span>
+                <span className="text-gray-400">{t('dashboard.avgPerEvent')}</span>
                 <span className="text-violet-600 font-bold">{stats.totalEvents > 0 ? Math.round(stats.totalAttendees / stats.totalEvents) : 0}</span>
               </div>
             </div>
@@ -259,13 +253,13 @@ export const DashboardPage = () => {
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-6 py-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Recent Events</h2>
-              <p className="text-sm text-gray-500 mt-0.5">Your latest event activities and performance</p>
+              <h2 className="text-xl font-bold text-gray-900">{t('dashboard.recentEvents')}</h2>
+              <p className="text-sm text-gray-500 mt-0.5">{t('dashboard.recentEventsSub')}</p>
             </div>
             <button
                 onClick={fetchDashboardData}
                 className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
-                title="Refresh"
+                title={t('dashboard.refresh')}
               >
                 <History className="w-5 h-5" />
               </button>
@@ -289,14 +283,14 @@ export const DashboardPage = () => {
               <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
                 <CalendarDays className="w-10 h-10 text-blue-500" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">No events yet</h3>
-              <p className="text-gray-500 mb-6 max-w-sm mx-auto">Create your first event and start building your community</p>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">{t('dashboard.noEventsYet')}</h3>
+              <p className="text-gray-500 mb-6 max-w-sm mx-auto">{t('dashboard.createFirstEventSub')}</p>
               <button
                 onClick={() => navigate('/create-event')}
                 className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all inline-flex items-center gap-2 shadow-lg shadow-blue-600/20"
               >
                 <Plus className="w-5 h-5" />
-                Create Your First Event
+                {t('dashboard.createYourFirstEvent')}
               </button>
             </div>
           ) : (
@@ -332,7 +326,7 @@ export const DashboardPage = () => {
                           {event.category}
                         </span>
                       </div>
-                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm text-gray-500">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm text-gray-500">
                         <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
                           <Calendar className="w-4 h-4 text-blue-500" />
                           <span className="font-medium">{event.date}</span>
@@ -347,7 +341,7 @@ export const DashboardPage = () => {
                         </div>
                         <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
                           <Users className="w-4 h-4 text-violet-500" />
-                          <span className="font-medium">{event.maxAttendees} capacity</span>
+                          <span className="font-medium">{t('dashboard.capacity', { count: event.maxAttendees })}</span>
                         </div>
                       </div>
                     </div>
@@ -357,7 +351,7 @@ export const DashboardPage = () => {
                       onClick={(e) => { e.stopPropagation(); navigate(`/events/${event.id}`, { state: { fromDashboard: true } }); }}
                       className="w-full lg:w-auto px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-sm"
                     >
-                      View Details
+                      {t('dashboard.viewDetails')}
                       <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
@@ -368,7 +362,7 @@ export const DashboardPage = () => {
               {pagination.totalPages > 1 && (
                 <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-4">
                   <p className="text-sm text-gray-500">
-                    Showing <span className="font-semibold text-gray-700">{((pagination.page - 1) * pagination.limit) + 1}</span> to <span className="font-semibold text-gray-700">{Math.min(pagination.page * pagination.limit, pagination.total)}</span> of <span className="font-semibold text-gray-700">{pagination.total}</span> events
+                    {t('dashboard.showingEvents', { from: ((pagination.page - 1) * pagination.limit) + 1, to: Math.min(pagination.page * pagination.limit, pagination.total), total: pagination.total })}
                   </p>
                   <div className="flex items-center gap-2">
                     <button
@@ -377,7 +371,7 @@ export const DashboardPage = () => {
                       className="px-4 py-2 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-sm font-medium flex items-center gap-1"
                     >
                       <ChevronLeft className="w-4 h-4" />
-                      Previous
+                      {t('dashboard.previous')}
                     </button>
                     <div className="flex items-center gap-1">
                       {Array.from({ length: Math.min(3, pagination.totalPages) }, (_, i) => {
@@ -407,7 +401,7 @@ export const DashboardPage = () => {
                       disabled={pagination.page >= pagination.totalPages}
                       className="px-4 py-2 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-sm font-medium flex items-center gap-1"
                     >
-                      Next
+                      {t('dashboard.next')}
                       <ChevronRight className="w-4 h-4" />
                     </button>
                   </div>

@@ -309,7 +309,7 @@ export const ManageAttendeesDetailPage = () => {
   };
 
   const checkInMutation = useMutation({
-    mutationFn: ({ qrTicketId }) => attendeeService.checkInAttendee(qrTicketId),
+    mutationFn: ({ qrTicketId }) => attendeeService.checkInAttendee(qrTicketId, id),
     onSuccess: (response) => {
       const message = response?.message || t('attendees.checkInSuccessful');
       const normalizedMessage = message.toLowerCase();
@@ -565,7 +565,13 @@ export const ManageAttendeesDetailPage = () => {
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, t('attendees.export.sheetName'));
 
-      const eventName = eventInfo.title?.replace(/[^a-zA-Z0-9]/g, '_') || 'Event';
+      const eventName = eventInfo.title
+        ?.replace(/[<>:"\\|?*]/g, '_')
+        .replace(/\s+/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .substring(0, 50)
+        .trim() || 'Event';
       const fileName = `${eventName}_Attendees_${new Date().toISOString().split('T')[0]}.xlsx`;
 
       XLSX.writeFile(workbook, fileName);

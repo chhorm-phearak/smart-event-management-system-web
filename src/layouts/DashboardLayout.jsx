@@ -23,6 +23,23 @@ export const DashboardLayout = () => {
 
   const isOrganizer = !!(user?.organization_id ?? user?.organizationId ?? user?.organization?.id);
 
+  const getUserAvatarUrl = () => {
+    const url = user?.img_url || user?.image_url || user?.image || null;
+    if (!url || typeof url !== 'string' || !url.trim()) return null;
+    const lower = url.toLowerCase();
+    const bad = ['default', 'placeholder', 'no-image', 'no_image', 'avatar.png', 'user.png', 'profile.png', 'blank', 'missing', 'undefined', 'null'];
+    return bad.some(p => lower.includes(p)) ? null : url;
+  };
+
+  const userInitials = () => {
+    const first = (user?.first_name || '').trim();
+    const last = (user?.last_name || '').trim();
+    const emailFirst = (user?.email || 'U')[0];
+    if (first && last) return (first[0] + last[0]).toUpperCase();
+    if (first) return first.slice(0, 2).toUpperCase();
+    return emailFirst.toUpperCase();
+  };
+
   // Format timestamp to relative time
   const formatTime = (timestamp) => {
     if (!timestamp) return '';
@@ -437,8 +454,12 @@ export const DashboardLayout = () => {
                       {user?.email || t('user.noEmail')}
                     </p>
                   </div>
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold shadow-md group-hover:shadow-lg transition-shadow">
-                    {user?.first_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold shadow-md group-hover:shadow-lg transition-shadow overflow-hidden">
+                    {getUserAvatarUrl() ? (
+                      <img src={getUserAvatarUrl()} alt={userInitials()} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                    ) : (
+                      userInitials()
+                    )}
                   </div>
                 </button>
 
@@ -453,8 +474,12 @@ export const DashboardLayout = () => {
                       {/* User Info Header */}
                       <div className="px-4 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
                         <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold flex-shrink-0 text-lg shadow-md">
-                            {user?.first_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
+                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold flex-shrink-0 text-lg shadow-md overflow-hidden">
+                            {getUserAvatarUrl() ? (
+                              <img src={getUserAvatarUrl()} alt={userInitials()} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                            ) : (
+                              userInitials()
+                            )}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-base font-bold text-gray-900 truncate">

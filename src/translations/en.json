@@ -25,7 +25,164 @@
     "pricing": "Pricing",
     "reviews": "Reviews",
     "login": "Login",
-    "getStarted": "Get Started"
+    "getStarted": "Get Started",
+    "hero": {
+      "badge": "Trusted by 50,000+ event organizers",
+      "titlePrefix": "Create",
+      "titleHighlight": "Amazing",
+      "titleHighlight2": "Events",
+      "titleSuffix": "That People Love",
+      "subtitle": "The all-in-one platform to create, manage, and promote your events. From intimate gatherings to large conferences, we've got you covered.",
+      "startCreating": "Start Creating Events",
+      "watchDemo": "Watch Demo",
+      "organizers": "50,000+ organizers",
+      "eventsCreated": "1M+ events created"
+    },
+    "features": {
+      "title": "Everything You Need to {{highlight}}",
+      "titleHighlight": "Create Success",
+      "subtitle": "Our comprehensive platform provides all the tools you need to create, manage, and promote successful events.",
+      "items": [
+        {
+          "title": "Connect With People Worldwide",
+          "description": "Discover and join events from around the globe. Connect with communities and expand your network through exciting local and international gatherings."
+        },
+        {
+          "title": "Join Any Event You Want",
+          "description": "Browse and register for events that match your interests. Get instant QR tickets for seamless check-in and entry to your favorite events."
+        },
+        {
+          "title": "Manage Your Events",
+          "description": "Create and organize events with powerful management tools. Schedule, promote, and oversee every aspect of your events from creation to completion."
+        },
+        {
+          "title": "Manage Your Attendees",
+          "description": "Track registrations, monitor attendance, and communicate with participants. Handle check-ins efficiently and keep your attendees engaged throughout the event."
+        },
+        {
+          "title": "Create & Manage Groups",
+          "description": "Build communities by creating groups for specific interests. Post events directly to groups and foster engagement among like-minded individuals."
+        },
+        {
+          "title": "Assign Staff Control",
+          "description": "Delegate responsibilities by assigning staff members to manage specific events. Control access levels and ensure smooth event operations with team collaboration."
+        }
+      ]
+    },
+    "pricingSection": {
+      "titlePrefix": "Join",
+      "titleHighlight1": "Events",
+      "titleMiddle": "or",
+      "titleHighlight2": "Create",
+      "titleSuffix": "Them",
+      "subtitle": "Whether you're here to attend amazing events or organize your own, we have the perfect plan for you. Start your journey today!",
+      "mostPopular": "Most Popular",
+      "plans": [
+        {
+          "name": "Event Attendee",
+          "price": "Free",
+          "period": "Forever",
+          "description": "Perfect for anyone who wants to join and attend events",
+          "features": [
+            "Browse and discover events worldwide",
+            "Join unlimited events",
+            "Receive QR tickets for check-in",
+            "Event reminders and notifications",
+            "Connect with other attendees",
+            "Save favorite events"
+          ],
+          "cta": "Join as Attendee"
+        },
+        {
+          "name": "Event Organizer",
+          "price": "$19",
+          "period": "/month",
+          "description": "Create and manage your own events with powerful tools",
+          "features": [
+            "Create unlimited events",
+            "Manage up to 500 attendees per event",
+            "Advanced attendee management",
+            "QR ticket generation system",
+            "Create and manage groups",
+            "Assign staff to events",
+            "Event analytics dashboard",
+            "Email marketing tools"
+          ],
+          "cta": "Start as Organizer"
+        },
+        {
+          "name": "Professional Organizer",
+          "price": "$49",
+          "period": "/month",
+          "description": "For professional event managers and large organizations",
+          "features": [
+            "Everything in Organizer plan",
+            "Unlimited attendees per event",
+            "Advanced analytics & reporting",
+            "Priority customer support",
+            "Custom branding options",
+            "API access for integrations",
+            "Multiple organizer accounts",
+            "Advanced group management"
+          ],
+          "cta": "Go Professional"
+        }
+      ]
+    },
+    "testimonials": {
+      "titlePrefix": "Loved by",
+      "titleHighlight": "Event Organizers",
+      "subtitle": "See what our customers have to say about their experience with EventFlow.",
+      "items": [
+        {
+          "quote": "\"Smart Event Management transformed how we organize our conferences. The analytics dashboard is incredible and saved us countless hours.\"",
+          "name": "Sam Rathanak",
+          "title": "Event Director at NTTI"
+        },
+        {
+          "quote": "\"The registration and ticketing flow is seamless. Our attendees love the mobile-friendly experience, and our team cut check-in time in half.\"",
+          "name": "You Menglong",
+          "title": "Event Director at NTTI"
+        },
+        {
+          "quote": "\"We used to juggle spreadsheets and emails. Now everything from speaker schedules to vendor coordination lives in one place.\"",
+          "name": "Chhorm Phearak",
+          "title": "Event Director at NTTI"
+        },
+        {
+          "quote": "\"Real-time notifications and group chat kept our entire crew in sync. We finally have one place to manage every detail.\"",
+          "name": "Keng Koda",
+          "title": "Event Director at NTTI"
+        }
+      ]
+    },
+    "footer": {
+      "tagline": "The smartest way to discover, join, and manage events. Connect with communities worldwide or create unforgettable experiences.",
+      "categories": {
+        "product": "Product",
+        "company": "Company",
+        "support": "Support",
+        "legal": "Legal"
+      },
+      "links": {
+        "features": "Features",
+        "pricing": "Pricing",
+        "eventDiscovery": "Event Discovery",
+        "organizerTools": "Organizer Tools",
+        "aboutUs": "About Us",
+        "careers": "Careers",
+        "blog": "Blog",
+        "press": "Press",
+        "helpCenter": "Help Center",
+        "contactUs": "Contact Us",
+        "documentation": "Documentation",
+        "community": "Community",
+        "privacyPolicy": "Privacy Policy",
+        "termsOfService": "Terms of Service",
+        "cookiePolicy": "Cookie Policy"
+      },
+      "copyright": "\u00a9 {{year}} MPR Smart Event. All rights reserved."
+    }
   },
   "brand": {
     "tagline": "Event Management"

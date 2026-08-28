@@ -20,9 +20,18 @@ const formatTimeFromISO = (isoString, locale = 'en-US') => {
 
 const getEventPayload = (res) => {
   if (!res || typeof res !== 'object') return null;
-  const data = res.data ?? res;
-  if (data && typeof data === 'object' && data.event != null) return data.event;
-  return data ?? res.event ?? res;
+  const container = res.data ?? res;
+  const baseEvent = container?.event ?? container;
+  if (!baseEvent || typeof baseEvent !== 'object' || !baseEvent.id) return null;
+
+  // The detail endpoint returns { event, images, agenda, staff } as siblings.
+  // Merge those sibling collections onto the event so the rest of the mapper can find them.
+  return {
+    ...baseEvent,
+    images: baseEvent.images ?? container.images ?? [],
+    agenda: baseEvent.agenda ?? container.agenda ?? baseEvent.agendas ?? [],
+    staff: baseEvent.staff ?? container.staff ?? [],
+  };
 };
 
 const getRegisteredEventsPayload = (res) => {
@@ -36,14 +45,15 @@ const getRegisteredEventsPayload = (res) => {
 
 const mapAgenda = (agenda) => {
   if (!agenda) return [];
+  if (Array.isArray(agenda) && agenda.length === 0) return [];
   const list = Array.isArray(agenda) ? agenda : [agenda];
-  return list.map((a, i) => ({
-    id: a?.id ?? i,
-    title: a?.title ?? a?.name ?? '—',
-    description: a?.description ?? '',
-    startTime: a?.start_time ?? a?.startTime ?? '',
-    endTime: a?.end_time ?? a?.endTime ?? '',
-    speaker: a?.speaker ?? '',
+  return list.filter(a => a && typeof a === 'object').map((a, i) => ({
+    id: a.id ?? i,
+    title: a.title ?? a.name ?? '—',
+    description: a.description ?? '',
+    startTime: a.start_time || a.startTime || '',
+    endTime: a.end_time || a.endTime || '',
+    speaker: a.speaker ?? '',
   }));
 };
 

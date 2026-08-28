@@ -1,50 +1,51 @@
+import { useLanguage } from '@/context/LanguageContext';
 import rathanak from '@/assets/images/rathanak.jpg';
-import menglong from '@/assets/images/menglong.jpg';
+import menglong from '@/assets/images/menglong.png';
 import pheareak from '@/assets/images/pheareak.jpg';
 import koda from '@/assets/images/koda.png';
 
-const testimonials = [
-  {
-    quote:
-      '"Smart Event Management transformed how we organize our conferences. The analytics dashboard is incredible and saved us countless hours."',
-    name: 'Sam Rathanak',
-    title: 'Event Director at NTTI',
-    image: rathanak,
-  },
-  {
-    quote:
-      '"The registration and ticketing flow is seamless. Our attendees love the mobile-friendly experience, and our team cut check-in time in half."',
-    name: 'You Menglong',
-    title: 'Event Director at NTTI',
-    image: menglong,
-  },
-  {
-    quote:
-      '"We used to juggle spreadsheets and emails. Now everything from speaker schedules to vendor coordination lives in one place."',
-    name: 'Chhorm Phearak',
-    title: 'Event Director at NTTI',
-    image: pheareak,
-  },
-  {
-    quote:
-      '"Real-time notifications and group chat kept our entire crew in sync. We finally have one place to manage every detail."',
-    name: 'Keng Koda',
-    title: 'Event Director at NTTI',
-    image: koda,
-  },
-];
+const testimonialImages = [rathanak, menglong, pheareak, koda];
 
 export const TestimonialsSection = () => {
+  const { t } = useLanguage();
+
+  const testimonials = [
+    {
+      quote: t('landing.testimonials.items.0.quote'),
+      name: t('landing.testimonials.items.0.name'),
+      title: t('landing.testimonials.items.0.title'),
+      image: testimonialImages[0],
+    },
+    {
+      quote: t('landing.testimonials.items.1.quote'),
+      name: t('landing.testimonials.items.1.name'),
+      title: t('landing.testimonials.items.1.title'),
+      image: testimonialImages[1],
+    },
+    {
+      quote: t('landing.testimonials.items.2.quote'),
+      name: t('landing.testimonials.items.2.name'),
+      title: t('landing.testimonials.items.2.title'),
+      image: testimonialImages[2],
+    },
+    {
+      quote: t('landing.testimonials.items.3.quote'),
+      name: t('landing.testimonials.items.3.name'),
+      title: t('landing.testimonials.items.3.title'),
+      image: testimonialImages[3],
+    },
+  ];
+
   return (
     <section id="testimonials" className="bg-gray-50 py-24 lg:py-36">
       <div className="w-full px-[50px]">
         <div className="text-center max-w-6xl mx-auto mb-20">
           <h2 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold text-gray-900 mb-6">
-            Loved by <span className="text-blue-600">Event Organizers</span>
+            {t('landing.testimonials.titlePrefix')}{' '}
+            <span className="text-blue-600">{t('landing.testimonials.titleHighlight')}</span>
           </h2>
           <p className="text-xl lg:text-2xl text-gray-600 leading-relaxed">
-            See what our customers have to say about their experience with
-            EventFlow.
+            {t('landing.testimonials.subtitle')}
           </p>
         </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-10 lg:gap-12">

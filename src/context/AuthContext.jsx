@@ -70,28 +70,42 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(true);
       const userData = data?.data?.user || data?.user || { email };
       console.log('Login User Data:', userData); // Debug log
-      
-      // Store organization_id in localStorage if available; otherwise resolve
-      // it from /organizations/current so refresh keeps the organizer state.
-      let orgId = userData.organization_id ?? userData.organizationId ?? userData.organization?.id;
+
+      // The login response may not include img_url. Fetch the full profile right
+      // away so the header avatar appears immediately instead of after a refresh.
+      let finalUser = userData;
+      try {
+        const profileData = await authService.getProfile();
+        const profileUser = profileData?.data?.user || profileData?.user || profileData;
+        if (profileUser) {
+          finalUser = { ...userData, ...profileUser };
+        }
+      } catch (profileError) {
+        console.error('Failed to fetch profile after login:', profileError);
+      }
+
+      // Resolve organization_id from (1) full profile, (2) login data, (3) /organizations/current
+      let orgId =
+        finalUser.organization_id ?? finalUser.organizationId ?? finalUser.organization?.id;
       if (!orgId) {
         orgId = await resolveCurrentOrganizationId();
       }
       if (orgId) {
         setOrganizationId(orgId);
-        userData.organization_id = orgId;
+        finalUser.organization_id = finalUser.organization_id ?? orgId;
       }
-      
-      setUser(userData);
+
+      console.log('Final User Data after login:', finalUser); // Debug log
+      setUser(finalUser);
       await queryClient.invalidateQueries({ predicate: () => true });
-      
+
       // Handle redirect after login
       const redirectPath = sessionStorage.getItem('redirectAfterLogin');
       if (redirectPath) {
         sessionStorage.removeItem('redirectAfterLogin');
         window.location.href = redirectPath;
       }
-      
+
       return { success: true, data };
     } catch (error) {
       return {

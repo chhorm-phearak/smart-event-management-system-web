@@ -1,32 +1,47 @@
 import { Link } from 'react-router-dom';
-
-const footerLinks = {
-  Product: [
-    { label: 'Features', href: '#features' },
-    { label: 'Pricing', href: '#pricing' },
-    { label: 'Event Discovery', href: '#features' },
-    { label: 'Organizer Tools', href: '#pricing' },
-  ],
-  Company: [
-    { label: 'About Us', href: '#' },
-    { label: 'Careers', href: '#' },
-    { label: 'Blog', href: '#' },
-    { label: 'Press', href: '#' },
-  ],
-  Support: [
-    { label: 'Help Center', href: '#' },
-    { label: 'Contact Us', href: '#' },
-    { label: 'Documentation', href: '#' },
-    { label: 'Community', href: '#' },
-  ],
-  Legal: [
-    { label: 'Privacy Policy', href: '#' },
-    { label: 'Terms of Service', href: '#' },
-    { label: 'Cookie Policy', href: '#' },
-  ],
-};
+import { useLanguage } from '@/context/LanguageContext';
 
 export const FooterSection = () => {
+  const { t } = useLanguage();
+
+  const footerLinkGroups = [
+    {
+      category: t('landing.footer.categories.product'),
+      links: [
+        { label: t('landing.footer.links.features'), href: '#features' },
+        { label: t('landing.footer.links.pricing'), href: '#pricing' },
+        { label: t('landing.footer.links.eventDiscovery'), href: '#features' },
+        { label: t('landing.footer.links.organizerTools'), href: '#pricing' },
+      ],
+    },
+    {
+      category: t('landing.footer.categories.company'),
+      links: [
+        { label: t('landing.footer.links.aboutUs'), href: '#' },
+        { label: t('landing.footer.links.careers'), href: '#' },
+        { label: t('landing.footer.links.blog'), href: '#' },
+        { label: t('landing.footer.links.press'), href: '#' },
+      ],
+    },
+    {
+      category: t('landing.footer.categories.support'),
+      links: [
+        { label: t('landing.footer.links.helpCenter'), href: '#' },
+        { label: t('landing.footer.links.contactUs'), href: '#' },
+        { label: t('landing.footer.links.documentation'), href: '#' },
+        { label: t('landing.footer.links.community'), href: '#' },
+      ],
+    },
+    {
+      category: t('landing.footer.categories.legal'),
+      links: [
+        { label: t('landing.footer.links.privacyPolicy'), href: '#' },
+        { label: t('landing.footer.links.termsOfService'), href: '#' },
+        { label: t('landing.footer.links.cookiePolicy'), href: '#' },
+      ],
+    },
+  ];
+
   return (
     <footer className="bg-slate-800 text-white">
       <div className="w-full px-[50px] py-20 lg:py-24">
@@ -39,7 +54,7 @@ export const FooterSection = () => {
               MPR Smart Event
             </Link>
             <p className="text-slate-300 max-w-md text-lg lg:text-xl leading-relaxed">
-              The smartest way to discover, join, and manage events. Connect with communities worldwide or create unforgettable experiences.
+              {t('landing.footer.tagline')}
             </p>
             <div className="flex gap-4 mt-6">
               <a href="#" className="w-10 h-10 bg-slate-700 hover:bg-slate-600 rounded-lg flex items-center justify-center transition-colors">
@@ -64,76 +79,33 @@ export const FooterSection = () => {
               </a>
             </div>
           </div>
-          <div>
-            <h4 className="font-semibold text-white text-lg lg:text-xl mb-6">Product</h4>
-            <ul className="space-y-4">
-              {footerLinks.Product.map((link) => (
-                <li key={link.label}>
-                  <a
-                    href={link.href}
-                    className="text-slate-300 hover:text-white transition-colors text-base lg:text-lg"
-                  >
-                    {link.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-semibold text-white text-lg lg:text-xl mb-6">Company</h4>
-            <ul className="space-y-4">
-              {footerLinks.Company.map((link) => (
-                <li key={link.label}>
-                  <a
-                    href={link.href}
-                    className="text-slate-300 hover:text-white transition-colors text-base lg:text-lg"
-                  >
-                    {link.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-semibold text-white text-lg lg:text-xl mb-6">Support</h4>
-            <ul className="space-y-4">
-              {footerLinks.Support.map((link) => (
-                <li key={link.label}>
-                  <a
-                    href={link.href}
-                    className="text-slate-300 hover:text-white transition-colors text-base lg:text-lg"
-                  >
-                    {link.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-semibold text-white text-lg lg:text-xl mb-6">Legal</h4>
-            <ul className="space-y-4">
-              {footerLinks.Legal.map((link) => (
-                <li key={link.label}>
-                  <a
-                    href={link.href}
-                    className="text-slate-300 hover:text-white transition-colors text-base lg:text-lg"
-                  >
-                    {link.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
+          {footerLinkGroups.map((group) => (
+            <div key={group.category}>
+              <h4 className="font-semibold text-white text-lg lg:text-xl mb-6">{group.category}</h4>
+              <ul className="space-y-4">
+                {group.links.map((link) => (
+                  <li key={link.label}>
+                    <a
+                      href={link.href}
+                      className="text-slate-300 hover:text-white transition-colors text-base lg:text-lg"
+                    >
+                      {link.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
         <div className="border-t border-slate-700 mt-16 pt-10">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="text-slate-400 text-base lg:text-lg">
-              © {new Date().getFullYear()} MPR Smart Event. All rights reserved.
+              {t('landing.footer.copyright', { year: new Date().getFullYear() })}
             </div>
             <div className="flex gap-6 text-slate-400 text-base lg:text-lg">
-              <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
-              <a href="#" className="hover:text-white transition-colors">Terms of Service</a>
-              <a href="#" className="hover:text-white transition-colors">Cookie Policy</a>
+              <a href="#" className="hover:text-white transition-colors">{t('landing.footer.links.privacyPolicy')}</a>
+              <a href="#" className="hover:text-white transition-colors">{t('landing.footer.links.termsOfService')}</a>
+              <a href="#" className="hover:text-white transition-colors">{t('landing.footer.links.cookiePolicy')}</a>
             </div>
           </div>
         </div>

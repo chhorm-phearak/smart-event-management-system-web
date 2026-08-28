@@ -16,8 +16,10 @@ export const attendeeService = {
     return response.data;
   },
 
-  checkInAttendee: async (qrTicketId) => {
-    const response = await api.post(`/events/checkin/${encodeURIComponent(qrTicketId)}`);
+  checkInAttendee: async (qrTicketId, eventId) => {
+    const response = await api.post(`/events/checkin/${encodeURIComponent(qrTicketId)}`, {
+      event_id: eventId,
+    });
     return response.data;
   },
 };

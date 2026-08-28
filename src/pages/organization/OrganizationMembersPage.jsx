@@ -221,15 +221,37 @@ export const OrganizationMembersPage = () => {
     return (parts[0][0] + parts[1][0]).toUpperCase();
   };
 
+  const isRealImageUrl = (url) => {
+    if (!url || typeof url !== 'string') return false;
+    const trimmed = url.trim();
+    if (!trimmed) return false;
+    const lower = trimmed.toLowerCase();
+    const placeholderPatterns = [
+      'default',
+      'placeholder',
+      'no-image',
+      'no_image',
+      'avatar.png',
+      'user.png',
+      'profile.png',
+      'blank',
+      'missing',
+      'undefined',
+      'null',
+    ];
+    return !placeholderPatterns.some(pattern => lower.includes(pattern));
+  };
+
   const Avatar = ({ name, imageUrl, size = 'md' }) => {
     const initials = getInitials(name);
     const sizeClasses = size === 'md'
       ? 'w-16 h-16 text-xl'
       : 'w-12 h-12 text-sm';
+    const showImage = isRealImageUrl(imageUrl);
     return (
       <div className={`${sizeClasses} rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-blue-100 text-blue-700 font-bold`}>
-        {imageUrl ? (
-          <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+        {showImage ? (
+          <img src={imageUrl} alt={name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
         ) : (
           <span>{initials}</span>
         )}

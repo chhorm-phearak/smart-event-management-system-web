@@ -140,7 +140,9 @@ export const ProfilePage = () => {
       const updatedUser = response.data?.user;
 
       if (updatedUser) {
-        setUser(updatedUser);
+        // Merge with existing auth user so fields not returned by the update
+        // endpoint (e.g. organization_id, role) are preserved.
+        setUser({ ...(authUser || {}), ...updatedUser });
         setSuccess('Profile updated successfully!');
         setIsEditing(false);
       }
@@ -477,7 +479,13 @@ export const ProfilePage = () => {
               </div>
               <div className="bg-gray-50 rounded-lg p-4">
                 <p className="text-sm text-gray-600 mb-1">Role</p>
-                <p className="text-gray-900 font-semibold">User</p>
+                <p className="text-gray-900 font-semibold">
+                  {authUser?.role
+                    ? (authUser.role.charAt(0).toUpperCase() + authUser.role.slice(1).toLowerCase())
+                    : (authUser?.organization_id || authUser?.organizationId || authUser?.organization?.id
+                      ? 'Organizer'
+                      : 'User')}
+                </p>
               </div>
             </div>
           </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { useAuth } from '@/context/AuthContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { groupService, userService, chatService, socketService, globalChatService } from '@/services';
@@ -117,17 +118,49 @@ const normalizeGroup = (g) => {
   };
 };
 
+const getInitials = (name = '') => {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+};
+
+const isRealImageUrl = (url) => {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  const lower = trimmed.toLowerCase();
+  const placeholderPatterns = [
+    'default',
+    'placeholder',
+    'no-image',
+    'no_image',
+    'avatar.png',
+    'user.png',
+    'profile.png',
+    'blank',
+    'missing',
+    'undefined',
+    'null',
+    'unsplash',
+    'via.placeholder',
+  ];
+  return !placeholderPatterns.some(pattern => lower.includes(pattern));
+};
+
 // Normalize API user to { id, fullName, email, avatar } for display
 const normalizeUser = (u) => {
   if (!u || typeof u !== 'object') return null;
   const id = u.id ?? u.user_id ?? u.userId;
   if (id == null) return null;
   const fullName = (u.full_name || [u.first_name, u.last_name].filter(Boolean).join(' ') || u.username || u.name || '').toString().trim() || '—';
+  const rawAvatar = u.avatar ?? u.image ?? u.image_url ?? '';
   return {
     id,
     fullName,
     email: (u.email ?? '').toString(),
-    avatar: u.avatar ?? u.image ?? u.image_url ?? 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop',
+    avatar: isRealImageUrl(rawAvatar) ? rawAvatar : '',
+    initials: getInitials(fullName),
   };
 };
 
@@ -870,7 +903,7 @@ export const GroupPage = () => {
   const handleCopyInviteLink = () => {
     if (inviteLink) {
       navigator.clipboard.writeText(inviteLink);
-      // You could add a toast notification here
+      toast.success(t('groups.inviteLinkCopied'));
     }
   };
 
@@ -2937,11 +2970,17 @@ export const GroupPage = () => {
                       foundUsers.map((u) => (
                         <div key={u.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
                           <div className="flex items-center gap-3">
-                            <img
-                              src={u.avatar}
-                              alt={u.fullName}
-                              className="w-10 h-10 rounded-full object-cover"
-                            />
+                            {u.avatar ? (
+                              <img
+                                src={u.avatar}
+                                alt={u.fullName}
+                                className="w-10 h-10 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-sm">
+                                {u.initials}
+                              </div>
+                            )}
                             <div>
                               <div className="font-medium text-gray-900">{u.fullName}</div>
                               <div className="text-sm text-gray-500">{u.email}</div>
@@ -2997,11 +3036,17 @@ export const GroupPage = () => {
                       foundUsersByEmail.map((u) => (
                         <div key={u.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
                           <div className="flex items-center gap-3">
-                            <img
-                              src={u.avatar}
-                              alt={u.fullName}
-                              className="w-10 h-10 rounded-full object-cover"
-                            />
+                            {u.avatar ? (
+                              <img
+                                src={u.avatar}
+                                alt={u.fullName}
+                                className="w-10 h-10 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-sm">
+                                {u.initials}
+                              </div>
+                            )}
                             <div>
                               <div className="font-medium text-gray-900">{u.fullName}</div>
                               <div className="text-sm text-gray-500">{u.email}</div>

@@ -656,6 +656,7 @@
     "attendee": "អ្នកចូលរួម",
     "contact": "ទំនាក់ទំនង",
     "registeredHeader": "បានចុះឈ្មោះ",
+    "checkedInAt": "បានឆែកចូលនៅ",
     "statusHeader": "ស្ថានភាព",
     "ticketId": "លេខសំបុត្រ",
     "actions": "សកម្មភាព",
@@ -686,6 +687,7 @@
       "email": "អ៊ីមែល",
       "contact": "ទំនាក់ទំនង",
       "registeredAt": "បានចុះឈ្មោះនៅ",
+      "checkedInAt": "បានឆែកចូលនៅ",
       "status": "ស្ថានភាព",
       "ticketId": "លេខសំបុត្រ",
       "sheetName": "អ្នកចូលរួម"

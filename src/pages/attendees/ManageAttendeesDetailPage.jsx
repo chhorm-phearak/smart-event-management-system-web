@@ -210,8 +210,11 @@ export const ManageAttendeesDetailPage = () => {
 
       const config = {
         fps: 10,
-        qrbox: { width: 250, height: 250 },
-        aspectRatio: 1.0
+        qrbox: (viewfinderWidth, viewfinderHeight) => {
+          const minDimension = Math.min(viewfinderWidth, viewfinderHeight);
+          const size = Math.min(400, Math.floor(minDimension * 0.75));
+          return { width: size, height: size };
+        },
       };
 
       // Try with specific camera ID first, then fallback to facingMode
@@ -522,9 +525,6 @@ export const ManageAttendeesDetailPage = () => {
   });
 
   const handleDeleteAttendee = (registrationId) => {
-    if (!window.confirm(t('attendees.removeConfirm'))) {
-      return;
-    }
     if (!registrationId) {
       toast.error(t('attendees.invalidAttendeeInfo'));
       return;
@@ -545,6 +545,7 @@ export const ManageAttendeesDetailPage = () => {
         [t('attendees.export.email')]: attendee.email || '—',
         [t('attendees.export.contact')]: attendee.contact || '—',
         [t('attendees.export.registeredAt')]: formatDateTime(attendee.registered_at),
+        [t('attendees.export.checkedInAt')]: attendee.checked_at ? formatDateTime(attendee.checked_at) : '—',
         [t('attendees.export.status')]: renderStatusLabel(attendee.status),
         [t('attendees.export.ticketId')]: attendee.registration_id || '—',
       }));
@@ -556,6 +557,7 @@ export const ManageAttendeesDetailPage = () => {
         { wch: 25 },
         { wch: 30 },
         { wch: 15 },
+        { wch: 20 },
         { wch: 20 },
         { wch: 15 },
         { wch: 40 },
@@ -828,15 +830,15 @@ export const ManageAttendeesDetailPage = () => {
                   </button>
                 </div>
                 
-                {/* Camera View - Same aspect-square as original */}
-                <div className="relative w-full aspect-square max-w-md mx-auto m-4 bg-black rounded-xl overflow-hidden">
+                {/* Camera View - Enlarged for easier scanning */}
+                <div className="relative w-full aspect-square max-w-xl mx-auto m-4 bg-black rounded-xl overflow-hidden">
                   <div id="qr-reader" className="w-full h-full"></div>
                   
                   {/* Overlay with instructions */}
                   <div className="absolute inset-0 pointer-events-none">
                     {/* Viewfinder frame overlay */}
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-64 h-64 border-4 border-blue-500 rounded-lg shadow-lg relative">
+                      <div className="w-96 h-96 border-4 border-blue-500 rounded-lg shadow-lg relative">
                         {/* Corner decorations */}
                         <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-blue-400 rounded-tl-lg"></div>
                         <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-blue-400 rounded-tr-lg"></div>
@@ -993,6 +995,7 @@ export const ManageAttendeesDetailPage = () => {
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{t('attendees.attendee')}</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{t('attendees.contact')}</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{t('attendees.registeredHeader')}</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{t('attendees.checkedInAt')}</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{t('attendees.statusHeader')}</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{t('attendees.ticketId')}</th>
                 <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">{t('attendees.actions')}</th>
@@ -1035,6 +1038,16 @@ export const ManageAttendeesDetailPage = () => {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
                         <span className="text-sm text-gray-600">{formatDateTime(attendee.registered_at)}</span>
+                      </div>
+                    </td>
+                    
+                    {/* Checked In At */}
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span className="text-sm text-gray-600">{attendee.checked_at ? formatDateTime(attendee.checked_at) : '—'}</span>
                       </div>
                     </td>
                     
@@ -1086,7 +1099,7 @@ export const ManageAttendeesDetailPage = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-16 text-center">
+                  <td colSpan={7} className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center">
                       <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                         <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

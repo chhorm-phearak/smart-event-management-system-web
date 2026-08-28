@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { QRCodeSVG } from 'qrcode.react';
@@ -42,6 +42,8 @@ export const CreateEventPage = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const organizationId = user?.organization_id ?? user?.organizationId ?? user?.organization?.id ?? getOrganizationId() ?? null;
+  const [searchParams] = useSearchParams();
+  const groupIdFromQuery = searchParams.get('groupId') || '';
   const [submitStatus, setSubmitStatus] = useState(null); // 'creating' | 'uploading'
   const [showStaffModal, setShowStaffModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState([]);
@@ -457,7 +459,7 @@ export const CreateEventPage = () => {
 
     const payload = {
       organization_id: organizationId,
-      group_id: '',
+      group_id: groupIdFromQuery,
       title: formData.title,
       short_description: formData.shortDescription,
       long_description: formData.description,

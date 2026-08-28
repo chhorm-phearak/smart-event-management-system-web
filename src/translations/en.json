@@ -656,6 +656,7 @@
     "attendee": "Attendee",
     "contact": "Contact",
     "registeredHeader": "Registered",
+    "checkedInAt": "Checked In At",
     "statusHeader": "Status",
     "ticketId": "Ticket ID",
     "actions": "Actions",
@@ -686,6 +687,7 @@
       "email": "Email",
       "contact": "Contact",
       "registeredAt": "Registered At",
+      "checkedInAt": "Checked In At",
       "status": "Status",
       "ticketId": "Ticket ID",
       "sheetName": "Attendees"
